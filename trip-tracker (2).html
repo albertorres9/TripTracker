@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trip Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap');
+:root{--bg:#0d0f14;--surface:#161820;--surface2:#1e2029;--border:#2a2d3a;--text:#e8eaf0;--muted:#7a7f96;--accent:#4f9cf9;--normal:#4f9cf9;--restos:#f97b4f;--excursion:#4fba8a;--gold:#f5c842;--active:#4fba8a;--cancelled:#f94f4f;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;}
+
+/* LOGIN */
+#login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:48px 40px;text-align:center;max-width:380px;width:100%;}
+.login-card h1{font-family:'DM Serif Display',serif;font-size:32px;margin-bottom:8px;}
+.login-card p{color:var(--muted);font-size:14px;margin-bottom:32px;line-height:1.6;}
+.btn-google{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;padding:13px 20px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;}
+.btn-google:hover{border-color:var(--accent);background:rgba(79,156,249,.07);}
+.login-note{color:var(--muted);font-size:11px;margin-top:20px;line-height:1.6;}
+
+/* LOADING */
+.loading-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;flex-direction:column;gap:16px;}
+.loading-spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{color:var(--muted);font-size:13px;}
+
+/* LAYOUT */
+#app-screen{display:none;}
+.app{display:flex;min-height:100vh;}
+.sidebar{width:220px;background:var(--surface);border-right:1px solid var(--border);padding:28px 0;display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100;}
+.logo{padding:0 24px 20px;border-bottom:1px solid var(--border);margin-bottom:16px;}
+.logo h1{font-family:'DM Serif Display',serif;font-size:22px;letter-spacing:-.5px;}
+.logo p{color:var(--muted);font-size:11px;margin-top:2px;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 24px;cursor:pointer;color:var(--muted);font-size:13px;font-weight:500;transition:all .15s;border-left:3px solid transparent;}
+.nav-item:hover{color:var(--text);background:var(--surface2);}
+.nav-item.active{color:var(--accent);border-left-color:var(--accent);background:rgba(79,156,249,.07);}
+.nav-item svg{width:16px;height:16px;flex-shrink:0;}
+.sidebar-footer{margin-top:auto;padding:16px 24px;border-top:1px solid var(--border);}
+.user-info{display:flex;align-items:center;gap:10px;}
+.user-avatar{width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid var(--border);}
+.user-avatar-ph{width:32px;height:32px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0;}
+.user-name{font-size:12px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.btn-logout{background:none;border:none;cursor:pointer;color:var(--muted);padding:4px;border-radius:4px;transition:color .15s;display:flex;}
+.btn-logout:hover{color:#f94f4f;}
+.main{margin-left:220px;flex:1;padding:28px 32px;max-width:1400px;}
+.page-header{margin-bottom:20px;}
+.page-header h2{font-family:'DM Serif Display',serif;font-size:26px;font-weight:400;}
+.page-header p{color:var(--muted);margin-top:3px;font-size:13px;}
+.page-section{display:none;}
+.page-section.active{display:block;}
+
+/* SAVE STATUS */
+.save-status{position:fixed;bottom:20px;right:20px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:7px;z-index:500;opacity:0;transition:opacity .3s;pointer-events:none;}
+.save-status.visible{opacity:1;}
+.save-status.saving{color:var(--accent);}
+.save-status.saved{color:var(--excursion);}
+.save-status.error{color:#f94f4f;}
+.save-dot{width:7px;height:7px;border-radius:50%;background:currentColor;}
+
+/* FILTER PANEL */
+.filter-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:18px;}
+.fp-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.fp-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);}
+.fp-reset{font-size:11px;color:var(--accent);cursor:pointer;font-weight:600;}
+.fp-reset:hover{text-decoration:underline;}
+.fp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+.fp-grid-wide{display:grid;grid-template-columns:repeat(4,1fr) 1.5fr;gap:14px;}
+.fg label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:5px;}
+.chips{display:flex;flex-wrap:wrap;gap:4px;}
+.chip{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);transition:all .15s;font-family:inherit;}
+.chip:hover{color:var(--text);border-color:var(--muted);}
+.chip.active{color:#fff;border-color:transparent;}
+.chip.c-all.active,.chip.c-year.active,.chip.c-cont.active,.chip.c-status.active{background:var(--accent);}
+.chip.c-normal.active{background:var(--normal);}
+.chip.c-restos.active{background:var(--restos);}
+.chip.c-excursion.active{background:var(--excursion);}
+.chip.c-finalizado.active{background:var(--muted);}
+.chip.c-en-curso.active{background:var(--active);}
+.chip.c-cancelado.active{background:var(--cancelled);}
+
+/* DROPDOWN MULTI */
+.dd-wrap{position:relative;}
+.dd-btn{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text);font-family:inherit;font-size:11px;cursor:pointer;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:4px;}
+.dd-btn svg{width:11px;height:11px;flex-shrink:0;}
+.dd-menu{position:absolute;top:calc(100% + 3px);left:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:8px;z-index:300;max-height:200px;overflow-y:auto;display:none;}
+.dd-menu.open{display:block;}
+.dd-opt{display:flex;align-items:center;gap:7px;padding:6px 10px;cursor:pointer;font-size:11px;color:var(--muted);transition:all .12s;}
+.dd-opt:hover{background:var(--border);color:var(--text);}
+.dd-opt input[type=checkbox]{accent-color:var(--accent);width:12px;height:12px;flex-shrink:0;}
+.dd-opt-all{border-bottom:1px solid var(--border);font-weight:600;color:var(--text);}
+
+/* STATS */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;position:relative;overflow:hidden;}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
+.sc-blue::before{background:var(--normal);}
+.sc-orange::before{background:var(--restos);}
+.sc-green::before{background:var(--excursion);}
+.sc-gold::before{background:var(--gold);}
+.sc-red::before{background:var(--cancelled);}
+.stat-label{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;}
+.stat-value{font-size:22px;font-weight:600;line-height:1;}
+.stat-sub{color:var(--muted);font-size:11px;margin-top:5px;}
+
+/* ACTIVE TRIPS BANNER */
+.active-banner{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
+.active-pill{display:flex;align-items:center;gap:6px;background:rgba(79,186,138,.12);border:1px solid rgba(79,186,138,.3);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:500;}
+.active-dot{width:7px;height:7px;border-radius:50%;background:var(--active);animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* CHARTS */
+.charts-grid{display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px;}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;}
+.chart-card.full{grid-column:1/-1;}
+.ct{font-weight:600;font-size:13px;margin-bottom:2px;}
+.cs{color:var(--muted);font-size:11px;margin-bottom:14px;}
+
+/* TRIPS TABLE */
+.trips-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:10px;flex-wrap:wrap;}
+.search-box{display:flex;align-items:center;gap:7px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 12px;flex:1;max-width:260px;}
+.search-box input{background:none;border:none;outline:none;color:var(--text);font-family:inherit;font-size:13px;width:100%;}
+.search-box input::placeholder{color:var(--muted);}
+.ftabs{display:flex;gap:4px;}
+.ftab{padding:5px 12px;border-radius:20px;font-size:11px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);transition:all .15s;font-family:inherit;}
+.ftab:hover{color:var(--text);}
+.ftab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.ftab.fn.active{background:var(--normal);border-color:var(--normal);}
+.ftab.fr.active{background:var(--restos);border-color:var(--restos);}
+.ftab.fe.active{background:var(--excursion);border-color:var(--excursion);}
+.btn-add{display:flex;align-items:center;gap:5px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;}
+.btn-add:hover{background:#3b87e8;}
+.trips-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;overflow-x:auto;}
+.tt{width:100%;border-collapse:collapse;min-width:780px;}
+.tt th{text-align:left;padding:8px 11px;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--border);font-weight:500;white-space:nowrap;}
+.tt td{padding:10px 11px;border-bottom:1px solid var(--border);font-size:13px;}
+.tt tr:hover td{background:var(--surface2);}
+.tt tr:last-child td{border-bottom:none;}
+.type-badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;}
+.type-badge.normal{background:rgba(79,156,249,.15);color:var(--normal);}
+.type-badge.restos{background:rgba(249,123,79,.15);color:var(--restos);}
+.type-badge.excursion{background:rgba(79,186,138,.15);color:var(--excursion);}
+.status-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;}
+.status-badge.finalizado{background:rgba(122,127,150,.15);color:var(--muted);}
+.status-badge.en-curso{background:rgba(79,186,138,.15);color:var(--active);}
+.status-badge.cancelado{background:rgba(249,79,79,.15);color:var(--cancelled);}
+.row-actions{display:flex;gap:3px;}
+.icon-btn{background:none;border:none;cursor:pointer;padding:4px;color:var(--muted);border-radius:4px;transition:all .15s;display:flex;align-items:center;}
+.icon-btn:hover{color:var(--text);background:var(--border);}
+.icon-btn.edit:hover{color:var(--accent);}
+.icon-btn.addexp:hover{color:var(--excursion);}
+
+/* ANALYTICS */
+.yr-filter{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:14px;}
+.yr-btn{padding:4px 11px;border-radius:6px;font-size:11px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);transition:all .15s;font-family:inherit;}
+.yr-btn:hover{color:var(--text);}
+.yr-btn.active{background:var(--surface2);border-color:var(--accent);color:var(--accent);}
+.analytics-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+.analytics-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;}
+
+/* COMPARE */
+.cmp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:18px;}
+.cmp-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;}
+.cmp-delta{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600;padding:2px 7px;border-radius:4px;margin-top:3px;}
+.cmp-delta.up{background:rgba(79,186,138,.15);color:var(--active);}
+.cmp-delta.down{background:rgba(249,79,79,.15);color:#f94f4f;}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;width:100%;max-width:520px;animation:fadeUp .2s ease;max-height:92vh;overflow-y:auto;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+.modal h3{font-family:'DM Serif Display',serif;font-size:20px;margin-bottom:16px;}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+.fg{margin-bottom:12px;}
+.fg label{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;}
+.fg input,.fg select{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 11px;color:var(--text);font-family:inherit;font-size:13px;outline:none;transition:border-color .15s;}
+.fg input:focus,.fg select:focus{border-color:var(--accent);}
+.fg select option{background:var(--surface2);}
+.modal-divider{border:none;border-top:1px solid var(--border);margin:14px 0;}
+.modal-actions{display:flex;gap:8px;margin-top:16px;justify-content:flex-end;}
+.btn-cancel{padding:7px 15px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:inherit;font-size:13px;cursor:pointer;}
+.btn-save{padding:7px 15px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;}
+.btn-delete{padding:7px 15px;border-radius:8px;border:none;background:rgba(249,79,79,.15);color:#f94f4f;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;margin-right:auto;}
+.expense-item{display:flex;align-items:center;justify-content:space-between;padding:6px 9px;background:var(--surface2);border-radius:6px;margin-bottom:4px;font-size:12px;}
+.exp-desc{color:var(--text);flex:1;}
+.exp-amt{color:var(--gold);font-weight:600;margin-left:8px;white-space:nowrap;}
+.exp-del{background:none;border:none;color:var(--muted);cursor:pointer;padding:1px 5px;border-radius:3px;font-size:13px;line-height:1;}
+.exp-del:hover{color:#f94f4f;}
+.add-exp-row{display:flex;gap:6px;margin-top:5px;}
+.add-exp-row input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:6px 9px;color:var(--text);font-family:inherit;font-size:12px;outline:none;}
+.add-exp-row input:focus{border-color:var(--accent);}
+.btn-addexp{background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--accent);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;padding:6px 11px;white-space:nowrap;}
+.btn-addexp:hover{border-color:var(--accent);}
+.exp-total-row{display:flex;justify-content:space-between;padding:6px 9px;background:rgba(245,200,66,.07);border-radius:6px;font-size:12px;font-weight:600;color:var(--gold);margin-top:3px;}
+.no-exp{color:var(--muted);font-size:12px;padding:3px 0 7px;}
+
+@media(max-width:900px){
+  .sidebar{width:100%;height:auto;position:relative;flex-direction:row;padding:8px 0;overflow-x:auto;border-right:none;border-bottom:1px solid var(--border);}
+  .logo,.sidebar-footer{display:none;}
+  .nav-item{padding:8px 13px;border-left:none;border-bottom:3px solid transparent;white-space:nowrap;}
+  .nav-item.active{border-bottom-color:var(--accent);border-left:none;}
+  .app{flex-direction:column;}.main{margin-left:0;padding:12px;}
+  .stats-grid,.fp-grid,.fp-grid-wide,.analytics-grid,.analytics-grid-3{grid-template-columns:1fr 1fr;}
+  .charts-grid{grid-template-columns:1fr;}
+  .form-row,.form-row-3{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loading-overlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">Cargando…</div>
+</div>
+
+<div id="login-screen" style="display:none">
+  <div class="login-card">
+    <div style="font-size:48px;margin-bottom:16px">✈️</div>
+    <h1>Trip Tracker</h1>
+    <p>Tu diario de viajes personal.<br>Inicia sesión para acceder a tus datos.</p>
+    <button class="btn-google" onclick="loginGoogle()">
+      <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+      Continuar con Google
+    </button>
+    <p class="login-note">Tus datos se guardan en la nube y están disponibles desde cualquier dispositivo.</p>
+  </div>
+</div>
+
+<div id="app-screen">
+<div class="app">
+<nav class="sidebar">
+  <div class="logo"><h1>✈ Trips</h1><p>Tu diario de viajes</p></div>
+  <div class="nav-item active" data-page="dashboard" onclick="showPage('dashboard',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Dashboard
+  </div>
+  <div class="nav-item" data-page="trips" onclick="showPage('trips',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>Mis Viajes
+  </div>
+  <div class="nav-item" data-page="analytics" onclick="showPage('analytics',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Análisis
+  </div>
+  <div class="nav-item" data-page="compare" onclick="showPage('compare',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Comparar Años
+  </div>
+  <div class="sidebar-footer">
+    <div class="user-info">
+      <div class="user-avatar-ph" id="uph">?</div>
+      <img class="user-avatar" id="uav" style="display:none" src="" alt="">
+      <span class="user-name" id="uname">—</span>
+      <button class="btn-logout" onclick="logout()" title="Cerrar sesión">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<main class="main">
+
+<!-- ═══════════════ DASHBOARD ═══════════════ -->
+<section class="page-section active" id="page-dashboard">
+  <div class="page-header"><h2>Dashboard</h2><p>Resumen general de tus viajes</p></div>
+  <div id="active-banner"></div>
+  <div class="filter-panel" id="fp-dash">
+    <div class="fp-header"><span class="fp-title">Filtros</span><span class="fp-reset" onclick="resetFilter('dash')">Resetear</span></div>
+    <div class="fp-grid-wide">
+      <div class="fg"><label>Tipo</label><div class="chips" id="ftype-dash"></div></div>
+      <div class="fg"><label>Estado</label><div class="chips" id="fstatus-dash"></div></div>
+      <div class="fg"><label>Continente</label><div class="chips" id="fcont-dash"></div></div>
+      <div class="fg"><label>Año</label><div class="chips" id="fyear-dash"></div></div>
+      <div class="fg"><label>Viaje concreto</label><div class="dd-wrap" id="ddw-dash"><button class="dd-btn" onclick="toggleDD('dash')"><span id="ddlbl-dash">Todos</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button><div class="dd-menu" id="ddm-dash"></div></div></div>
+    </div>
+  </div>
+  <div class="stats-grid">
+    <div class="stat-card sc-blue"><div class="stat-label">Gasto total</div><div class="stat-value" id="s-total">—</div><div class="stat-sub" id="s-total-sub"></div></div>
+    <div class="stat-card sc-gold"><div class="stat-label">Nº de viajes</div><div class="stat-value" id="s-count">—</div><div class="stat-sub" id="s-count-sub"></div></div>
+    <div class="stat-card sc-green"><div class="stat-label">Gasto / noche</div><div class="stat-value" id="s-pnight">—</div><div class="stat-sub">promedio filtrado</div></div>
+    <div class="stat-card sc-orange"><div class="stat-label">Nº de noches</div><div class="stat-value" id="s-nights">—</div><div class="stat-sub">noches en total</div></div>
+  </div>
+  <div class="charts-grid">
+    <div class="chart-card"><div class="ct">Gasto por año</div><div class="cs">Total € anual</div><canvas id="ch-yearly" height="200"></canvas></div>
+    <div class="chart-card"><div class="ct">Por tipo</div><div class="cs">Distribución del gasto</div><canvas id="ch-types" height="200"></canvas></div>
+  </div>
+  <div class="chart-card"><div class="ct">Evolución histórica</div><div class="cs">Gasto total (barras) y €/noche (línea) por año</div><canvas id="ch-evolution-dash" height="140"></canvas></div>
+</section>
+
+<!-- ═══════════════ MIS VIAJES ═══════════════ -->
+<section class="page-section" id="page-trips">
+  <div class="page-header"><h2>Mis Viajes</h2><p>Todos tus viajes registrados</p></div>
+  <div class="filter-panel">
+    <div class="fp-header"><span class="fp-title">Filtros</span><span class="fp-reset" onclick="resetFilter('trips')">Resetear</span></div>
+    <div class="fp-grid-wide">
+      <div class="fg"><label>Tipo</label><div class="chips" id="ftype-trips"></div></div>
+      <div class="fg"><label>Estado</label><div class="chips" id="fstatus-trips"></div></div>
+      <div class="fg"><label>Continente</label><div class="chips" id="fcont-trips"></div></div>
+      <div class="fg"><label>Año</label><div class="chips" id="fyear-trips"></div></div>
+      <div class="fg"><label>Buscar</label>
+        <div class="search-box" style="max-width:100%;margin:0">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="search-trips" placeholder="Destino, país…" oninput="renderTrips()">
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="trips-toolbar">
+    <div style="color:var(--muted);font-size:12px" id="trips-count-label"></div>
+    <button class="btn-add" onclick="openModal(null)">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Nuevo Viaje
+    </button>
+  </div>
+  <div class="trips-card">
+    <table class="tt">
+      <thead><tr>
+        <th>Destino</th><th>País</th><th>Tipo</th><th>Estado</th>
+        <th>Inicio</th><th>Fin</th><th>Noches</th><th>Total</th><th>€/noche</th><th style="width:70px"></th>
+      </tr></thead>
+      <tbody id="trips-tbody"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════ ANÁLISIS ═══════════════ -->
+<section class="page-section" id="page-analytics">
+  <div class="page-header"><h2>Análisis</h2><p>Tendencias y patrones de gasto</p></div>
+  <div class="filter-panel">
+    <div class="fp-header"><span class="fp-title">Filtros</span><span class="fp-reset" onclick="resetFilter('analytics')">Resetear</span></div>
+    <div class="fp-grid-wide">
+      <div class="fg"><label>Tipo</label><div class="chips" id="ftype-analytics"></div></div>
+      <div class="fg"><label>Estado</label><div class="chips" id="fstatus-analytics"></div></div>
+      <div class="fg"><label>Continente</label><div class="chips" id="fcont-analytics"></div></div>
+      <div class="fg"><label>Año</label><div class="chips" id="fyear-analytics"></div></div>
+      <div class="fg"><label>Viaje concreto</label><div class="dd-wrap" id="ddw-analytics"><button class="dd-btn" onclick="toggleDD('analytics')"><span id="ddlbl-analytics">Todos</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button><div class="dd-menu" id="ddm-analytics"></div></div></div>
+    </div>
+  </div>
+  <!-- Summary mini cards -->
+  <div class="stats-grid" style="margin-bottom:14px">
+    <div class="stat-card sc-blue"><div class="stat-label">Total filtrado</div><div class="stat-value" id="an-total">—</div><div class="stat-sub" id="an-trips">—</div></div>
+    <div class="stat-card sc-gold"><div class="stat-label">Noches totales</div><div class="stat-value" id="an-nights">—</div><div class="stat-sub" id="an-pnight">—</div></div>
+    <div class="stat-card sc-green"><div class="stat-label">Media noches/viaje</div><div class="stat-value" id="an-avg-nights">—</div><div class="stat-sub">solo viajes con noches</div></div>
+    <div class="stat-card sc-orange"><div class="stat-label">Media gasto/viaje</div><div class="stat-value" id="an-avg-cost">—</div><div class="stat-sub">promedio por viaje</div></div>
+  </div>
+  <div class="analytics-grid">
+    <div class="chart-card"><div class="ct">Gasto mensual</div><div class="cs" id="an-monthly-lbl">Por meses</div><canvas id="ch-monthly" height="220"></canvas></div>
+    <div class="chart-card"><div class="ct">Noches por mes</div><div class="cs" id="an-nights-lbl">Total noches por mes</div><canvas id="ch-nights-month" height="220"></canvas></div>
+  </div>
+  <div class="analytics-grid">
+    <div class="chart-card"><div class="ct">Top destinos</div><div class="cs">Por gasto total (€)</div><canvas id="ch-top-dest" height="220"></canvas></div>
+    <div class="chart-card"><div class="ct">Gasto por continente</div><div class="cs">Distribución por zona geográfica</div><canvas id="ch-continent" height="220"></canvas></div>
+  </div>
+  <div class="chart-card" style="margin-bottom:12px"><div class="ct">Gasto acumulado</div><div class="cs">Evolución del gasto en el período seleccionado</div><canvas id="ch-cumulative" height="120"></canvas></div>
+  <div class="chart-card"><div class="ct">Noches fuera por año</div><div class="cs">Total de noches viajando cada año</div><canvas id="ch-nights-year" height="120"></canvas></div>
+</section>
+
+<!-- ═══════════════ COMPARAR AÑOS ═══════════════ -->
+<section class="page-section" id="page-compare">
+  <div class="page-header"><h2>Comparar Años</h2><p>¿Gastas más o menos que antes?</p></div>
+  <div class="filter-panel">
+    <div class="fp-header"><span class="fp-title">Filtros</span><span class="fp-reset" onclick="resetFilter('compare')">Resetear</span></div>
+    <div class="fp-grid">
+      <div class="fg"><label>Tipo</label><div class="chips" id="ftype-compare"></div></div>
+      <div class="fg"><label>Estado</label><div class="chips" id="fstatus-compare"></div></div>
+      <div class="fg"><label>Continente</label><div class="chips" id="fcont-compare"></div></div>
+    </div>
+  </div>
+  <div class="cmp-grid" id="cmp-cards"></div>
+  <div class="chart-card"><div class="ct">Evolución histórica</div><div class="cs">Gasto total (barras) y €/noche (línea) por año</div><canvas id="ch-evolution" height="180"></canvas></div>
+</section>
+
+</main>
+</div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal" style="display:none" onclick="closeModalOverlay(event)">
+<div class="modal">
+  <h3 id="modal-title">Nuevo Viaje</h3>
+  <div class="fg"><label>Destino</label><input type="text" id="f-dest" placeholder="Ej: Lisboa"></div>
+  <div class="form-row">
+    <div class="fg"><label>Fecha inicio</label><input type="date" id="f-start"></div>
+    <div class="fg"><label>Fecha fin</label><input type="date" id="f-end"></div>
+  </div>
+  <div class="form-row-3">
+    <div class="fg"><label>Tipo</label>
+      <select id="f-type"><option value="normal">Normal</option><option value="restos">Restos</option><option value="excursion">Excursión</option></select>
+    </div>
+    <div class="fg"><label>Estado</label>
+      <select id="f-status"><option value="auto">Automático</option><option value="finalizado">Finalizado</option><option value="en-curso">En curso</option><option value="cancelado">Cancelado</option></select>
+    </div>
+    <div class="fg"><label>Noches</label><input type="number" id="f-nights" min="0" placeholder="0"></div>
+  </div>
+  <div class="form-row">
+    <div class="fg"><label>País (auto-detectado)</label><input type="text" id="f-country" placeholder="Se detecta solo"></div>
+    <div class="fg"><label>Continente (auto-detectado)</label><input type="text" id="f-continent" placeholder="Se detecta solo"></div>
+  </div>
+  <hr class="modal-divider">
+  <div class="fg">
+    <label style="margin-bottom:8px;display:block">Gastos del viaje</label>
+    <div id="expense-list"></div>
+    <div class="add-exp-row">
+      <input type="text" id="exp-desc" placeholder="Descripción…" onkeydown="if(event.key==='Enter')addExpense()">
+      <input type="number" id="exp-amt" placeholder="€" min="0" step="0.01" style="max-width:80px" onkeydown="if(event.key==='Enter')addExpense()">
+      <button class="btn-addexp" onclick="addExpense()">+ Añadir</button>
+    </div>
+    <div class="exp-total-row" id="exp-total-row" style="display:none"><span>Total gastos</span><span id="exp-total-val">€0</span></div>
+  </div>
+  <div class="fg"><label>Coste total (€)</label><input type="number" id="f-total" min="0" step="0.01" placeholder="0.00"></div>
+  <div class="modal-actions">
+    <button class="btn-delete" id="btn-del" style="display:none" onclick="deleteTrip()">Eliminar</button>
+    <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
+    <button class="btn-save" onclick="saveTrip()">Guardar</button>
+  </div>
+</div>
+</div>
+
+<div class="save-status" id="save-status"><div class="save-dot"></div><span id="save-msg">Guardado</span></div>
+
+<!-- ══════════════ FIREBASE ══════════════ -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, onSnapshot }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD8kDwfnU_7nZg_V_rpC6X7o7lQqQI4Dng",
+  authDomain: "gastosviajes-d4c55.firebaseapp.com",
+  projectId: "gastosviajes-d4c55",
+  storageBucket: "gastosviajes-d4c55.firebasestorage.app",
+  messagingSenderId: "907688615645",
+  appId: "1:907688615645:web:e19ff98391edfc618bc534"
+};
+const fbApp = initializeApp(firebaseConfig);
+const auth  = getAuth(fbApp);
+const db    = getFirestore(fbApp);
+const prov  = new GoogleAuthProvider();
+let uid = null, unsub = null, saveTO = null;
+
+window.loginGoogle = async () => { try { await signInWithPopup(auth, prov); } catch(e){ alert('Error: '+e.message); } };
+window.logout = async () => { if(unsub) unsub(); await signOut(auth); };
+window.saveToCloud = (data) => {
+  if(!uid) return;
+  showSS('saving','Guardando…');
+  clearTimeout(saveTO);
+  saveTO = setTimeout(async()=>{
+    try { await setDoc(doc(db,'users',uid),{trips:data,updatedAt:Date.now()}); showSS('saved','Guardado ✓'); }
+    catch(e){ showSS('error','Error al guardar'); }
+  }, 800);
+};
+
+onAuthStateChanged(auth, async user => {
+  document.getElementById('loading-overlay').style.display='none';
+  if(!user){ document.getElementById('login-screen').style.display='flex'; document.getElementById('app-screen').style.display='none'; uid=null; if(unsub){unsub();unsub=null;} return; }
+  uid=user.uid;
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app-screen').style.display='block';
+  const name=user.displayName||user.email||'Usuario';
+  document.getElementById('uname').textContent=name.split(' ')[0];
+  if(user.photoURL){ document.getElementById('uav').src=user.photoURL; document.getElementById('uav').style.display='block'; document.getElementById('uph').style.display='none'; }
+  else { document.getElementById('uph').textContent=name[0].toUpperCase(); }
+  const ref=doc(db,'users',uid);
+  const snap=await getDoc(ref);
+  if(snap.exists()&&snap.data().trips&&snap.data().trips.length>0){ window.trips=snap.data().trips; }
+  else { await setDoc(ref,{trips:window.SEED,updatedAt:Date.now()}); window.trips=[...window.SEED]; }
+  window.nextId=Math.max(...window.trips.map(t=>t.id),0)+1;
+  if(unsub) unsub();
+  unsub=onSnapshot(ref,s2=>{ if(s2.exists()&&s2.data().trips){ window.trips=s2.data().trips; window.nextId=Math.max(...window.trips.map(t=>t.id),0)+1; window.refreshCurrent&&window.refreshCurrent(); } });
+  window.initApp();
+});
+</script>
+
+<script>
+// ══════════════════════════════════════════════
+// GEO MAP
+// ══════════════════════════════════════════════
+const GEO = {"Grecia":["Grecia","Europa"],"Pescara":["Italia","Europa"],"Copenhague":["Dinamarca","Europa"],"Napoles":["Italia","Europa"],"Escocia":["Reino Unido","Europa"],"Chipre":["Chipre","Europa"],"Polonia":["Polonia","Europa"],"Vilna - Riga":["Lituania/Letonia","Europa"],"Suiza":["Suiza","Europa"],"Austria e Italia":["Austria/Italia","Europa"],"Nis y Sofia":["Serbia/Bulgaria","Europa"],"Navarra":["España","Europa"],"Estambul":["Turquía","Asia"],"Balcanes-Suroeste":["Albania/Montenegro","Europa"],"Gran Moldavia":["Moldavia","Europa"],"Austria-Friuli-Maribor":["Austria/Eslovenia","Europa"],"Francia Este - Suiza":["Francia/Suiza","Europa"],"Georgia - Armenia":["Georgia/Armenia","Asia"],"Casa Rural Mota":["España","Europa"],"Silesia y Moravia":["Polonia/Chequia","Europa"],"Viena":["Austria","Europa"],"Malaga":["España","Europa"],"Grecia Norte":["Grecia","Europa"],"Logroño":["España","Europa"],"Marrakech":["Marruecos","África"],"Melilla":["España","Europa"],"Calabria":["Italia","Europa"],"Toulouse":["Francia","Europa"],"China":["China","Asia"],"Alemania Oeste":["Alemania","Europa"],"El Hierro":["España","Europa"],"Vuelo Alicante-MUC":["España/Alemania","Europa"],"Hike Fischbachau":["Alemania","Europa"],"Helsinki - Tallin":["Finlandia/Estonia","Europa"],"Italia Noroeste":["Italia","Europa"],"Alentejo y Mérida":["Portugal/España","Europa"],"MAD/MUC":["España/Alemania","Europa"],"Nápoles":["Italia","Europa"],"Pais Vasco":["España","Europa"],"MAD/HAM":["España/Alemania","Europa"],"Gdansk":["Polonia","Europa"],"Serbia y Rumania":["Serbia/Rumania","Europa"],"Bamberg-Bayreuth":["Alemania","Europa"],"Turingia-Naumburg":["Alemania","Europa"],"Feldkirch-Liechtenstein":["Austria/Liechtenstein","Europa"],"Würzburg-Fulda":["Alemania","Europa"],"Trento-Bolzano":["Italia","Europa"],"Rodas Suizas":["Suiza","Europa"],"Gerona":["España","Europa"],"Oslo":["Noruega","Europa"],"Berlin":["Alemania","Europa"],"Calpe":["España","Europa"],"Gran Canaria":["España","Europa"],"Benissa":["España","Europa"],"Estepona":["España","Europa"],"Roma":["Italia","Europa"],"Córdoba":["España","Europa"],"Belgica":["Bélgica","Europa"],"Benicasim":["España","Europa"],"Malta":["Malta","Europa"],"Oesterrail":["Austria","Europa"],"Puglia":["Italia","Europa"],"Costa Azul":["Francia","Europa"],"Bergamo-Verona-Milan":["Italia","Europa"],"Granada":["España","Europa"],"Benicasim 2.0":["España","Europa"],"Luxemburgo":["Luxemburgo","Europa"],"Cerdeña":["Italia","Europa"],"Cambrils":["España","Europa"],"Belgrado":["Serbia","Europa"],"Francia Este":["Francia","Europa"]};
+
+function geoFor(dest){ return GEO[dest]||['Desconocido','Desconocido']; }
+
+function autoStatus(t){
+  if(t.statusManual && t.statusManual!=='auto') return t.statusManual;
+  if(!t.start) return 'finalizado';
+  const today=new Date(); today.setHours(0,0,0,0);
+  const start=new Date(t.start+'T00:00:00');
+  const end=t.end?new Date(t.end+'T00:00:00'):start;
+  if(start<=today && today<=end) return 'en-curso';
+  if(end<today) return 'finalizado';
+  return 'en-curso'; // future
+}
+
+// ══════════════════════════════════════════════
+// SEED DATA
+// ══════════════════════════════════════════════
+window.SEED = [
+  {id:1,type:"normal",destination:"Grecia",start:"2023-09-19",end:"2023-09-26",total:686.55,nights:7,expenses:[{desc:"Vuelo",amt:320},{desc:"Hotel",amt:250},{desc:"Otros",amt:116.55}]},
+  {id:2,type:"normal",destination:"Pescara",start:"2023-10-25",end:"2023-10-28",total:336,nights:3,expenses:[]},
+  {id:3,type:"normal",destination:"Copenhague",start:"2023-11-09",end:"2023-11-12",total:354.65,nights:3,expenses:[]},
+  {id:4,type:"normal",destination:"Napoles",start:"2024-03-08",end:"2024-03-15",total:624.68,nights:7,expenses:[]},
+  {id:5,type:"normal",destination:"Escocia",start:"2024-04-03",end:"2024-04-08",total:351.13,nights:5,expenses:[]},
+  {id:6,type:"normal",destination:"Chipre",start:"2024-04-12",end:"2024-04-16",total:348.21,nights:4,expenses:[]},
+  {id:7,type:"normal",destination:"Polonia",start:"2024-05-11",end:"2024-05-15",total:435.47,nights:4,expenses:[]},
+  {id:8,type:"normal",destination:"Vilna - Riga",start:"2024-06-11",end:"2024-06-15",total:256.36,nights:4,expenses:[]},
+  {id:9,type:"normal",destination:"Suiza",start:"2024-08-30",end:"2024-09-01",total:204.65,nights:2,expenses:[]},
+  {id:10,type:"normal",destination:"Austria e Italia",start:"2024-09-05",end:"2024-09-06",total:103.57,nights:1,expenses:[]},
+  {id:11,type:"normal",destination:"Nis y Sofia",start:"2024-10-03",end:"2024-10-06",total:285.43,nights:3,expenses:[]},
+  {id:12,type:"normal",destination:"Navarra",start:"2024-12-05",end:"2024-12-08",total:291.99,nights:3,expenses:[]},
+  {id:13,type:"normal",destination:"Estambul",start:"2024-12-14",end:"2024-12-18",total:434.07,nights:4,expenses:[]},
+  {id:14,type:"normal",destination:"Balcanes-Suroeste",start:"2025-02-18",end:"2025-02-25",total:507.34,nights:7,expenses:[]},
+  {id:15,type:"normal",destination:"Gran Moldavia",start:"2025-03-29",end:"2025-03-31",total:173.58,nights:2,expenses:[]},
+  {id:16,type:"normal",destination:"Austria-Friuli-Maribor",start:"2025-04-10",end:"2025-04-13",total:258.2,nights:3,expenses:[]},
+  {id:17,type:"normal",destination:"Francia Este - Suiza",start:"2025-04-20",end:"2025-04-21",total:135.76,nights:1,expenses:[]},
+  {id:18,type:"normal",destination:"Georgia - Armenia",start:"2025-04-29",end:"2025-05-04",total:585.26,nights:5,expenses:[]},
+  {id:19,type:"normal",destination:"Casa Rural Mota",start:"2025-05-23",end:"2025-05-25",total:142.16,nights:2,expenses:[]},
+  {id:20,type:"normal",destination:"Silesia y Moravia",start:"2025-06-06",end:"2025-06-09",total:299.31,nights:3,expenses:[]},
+  {id:21,type:"normal",destination:"Viena",start:"2025-08-08",end:"2025-08-10",total:283.04,nights:2,expenses:[]},
+  {id:22,type:"normal",destination:"Malaga",start:"2025-08-14",end:"2025-08-17",total:467.23,nights:3,expenses:[]},
+  {id:23,type:"normal",destination:"Grecia Norte",start:"2025-09-11",end:"2025-09-15",total:536.45,nights:4,expenses:[]},
+  {id:24,type:"normal",destination:"Logroño",start:"2025-10-17",end:"2025-10-19",total:240.65,nights:2,expenses:[]},
+  {id:25,type:"normal",destination:"Marrakech",start:"2025-12-12",end:"2025-12-15",total:319.53,nights:3,expenses:[]},
+  {id:26,type:"normal",destination:"Melilla",start:"2026-02-19",end:"2026-02-22",total:252.93,nights:3,expenses:[]},
+  {id:27,type:"normal",destination:"Calabria",start:"2026-03-13",end:"2026-03-16",total:313.23,nights:3,expenses:[]},
+  {id:28,type:"normal",destination:"Toulouse",start:"2026-04-17",end:"2026-04-20",total:341.54,nights:3,expenses:[]},
+  {id:29,type:"normal",destination:"China",start:"2026-08-24",end:"2026-09-01",total:743.78,nights:9,expenses:[]},
+  {id:30,type:"restos",destination:"Alemania Oeste",start:"2024-08-12",end:"2024-08-18",total:53.6,nights:6,expenses:[]},
+  {id:31,type:"restos",destination:"El Hierro",start:"2024-11-18",end:"2024-11-20",total:185.51,nights:2,expenses:[]},
+  {id:32,type:"restos",destination:"Vuelo Alicante-MUC",start:"2025-06-01",end:"2025-06-02",total:175.2,nights:1,expenses:[]},
+  {id:33,type:"restos",destination:"Hike Fischbachau",start:"2025-06-28",end:"2025-06-29",total:71.99,nights:1,expenses:[]},
+  {id:34,type:"restos",destination:"Helsinki - Tallin",start:"2025-08-21",end:"2025-08-24",total:140.4,nights:3,expenses:[]},
+  {id:35,type:"restos",destination:"Italia Noroeste",start:"2025-08-27",end:"2025-08-31",total:110.3,nights:4,expenses:[]},
+  {id:36,type:"restos",destination:"Alentejo y Mérida",start:"2025-11-08",end:"2025-11-10",total:8.09,nights:2,expenses:[]},
+  {id:37,type:"restos",destination:"MAD/MUC",start:"2025-11-14",end:"2025-11-17",total:218.4,nights:3,expenses:[]},
+  {id:38,type:"restos",destination:"Nápoles",start:"2026-01-22",end:"2026-01-25",total:65.4,nights:3,expenses:[]},
+  {id:39,type:"restos",destination:"Pais Vasco",start:"2026-02-27",end:"2026-03-01",total:197.93,nights:2,expenses:[]},
+  {id:40,type:"restos",destination:"MAD/HAM",start:"2026-05-13",end:"2026-05-17",total:165.45,nights:4,expenses:[]},
+  {id:41,type:"restos",destination:"Gdansk",start:"2026-05-17",end:"2026-05-18",total:107.59,nights:1,expenses:[]},
+  {id:42,type:"restos",destination:"Serbia y Rumania",start:"2026-08-09",end:"2026-08-15",total:0,nights:7,expenses:[]},
+  {id:43,type:"excursion",destination:"Bamberg-Bayreuth",start:"2024-04-26",end:"2024-04-26",total:14.45,nights:0,expenses:[]},
+  {id:44,type:"excursion",destination:"Turingia-Naumburg",start:"2024-05-06",end:"2024-05-06",total:53.36,nights:0,expenses:[]},
+  {id:45,type:"excursion",destination:"Feldkirch-Liechtenstein",start:"2024-05-09",end:"2024-05-09",total:31.05,nights:0,expenses:[]},
+  {id:46,type:"excursion",destination:"Würzburg-Fulda",start:"2024-09-19",end:"2024-09-19",total:22.95,nights:0,expenses:[]},
+  {id:47,type:"excursion",destination:"Trento-Bolzano",start:"2024-09-22",end:"2024-09-22",total:45.75,nights:0,expenses:[]},
+  {id:48,type:"excursion",destination:"Rodas Suizas",start:"2025-02-03",end:"2025-02-03",total:17.04,nights:0,expenses:[]},
+  {id:49,type:"excursion",destination:"Gerona",start:"2025-05-05",end:"2025-05-05",total:52.33,nights:0,expenses:[]},
+  {id:50,type:"excursion",destination:"Oslo",start:"2026-09-01",end:"2026-09-01",total:152,nights:0,expenses:[]},
+  {id:51,type:"normal",destination:"Berlin",start:"2020-02-14",end:"2020-02-18",total:294.64,nights:4,expenses:[]},
+  {id:52,type:"normal",destination:"Calpe",start:"2020-07-21",end:"2020-07-28",total:374.22,nights:7,expenses:[]},
+  {id:53,type:"normal",destination:"Gran Canaria",start:"2020-09-11",end:"2020-09-14",total:638.42,nights:3,expenses:[]},
+  {id:54,type:"normal",destination:"Benissa",start:"2021-07-17",end:"2021-07-24",total:472.19,nights:7,expenses:[]},
+  {id:55,type:"normal",destination:"Estepona",start:"2021-07-26",end:"2021-07-30",total:236,nights:4,expenses:[]},
+  {id:56,type:"normal",destination:"Roma",start:"2021-09-16",end:"2021-09-20",total:356.72,nights:4,expenses:[]},
+  {id:57,type:"normal",destination:"Córdoba",start:"2022-03-04",end:"2022-03-06",total:112.84,nights:2,expenses:[]},
+  {id:58,type:"normal",destination:"Belgica",start:"2022-03-12",end:"2022-03-15",total:302.99,nights:3,expenses:[]},
+  {id:59,type:"normal",destination:"Benicasim",start:"2022-04-22",end:"2022-04-24",total:82.11,nights:2,expenses:[]},
+  {id:60,type:"normal",destination:"Malta",start:"2022-07-20",end:"2022-07-27",total:919.56,nights:7,expenses:[]},
+  {id:61,type:"normal",destination:"Oesterrail",start:"2022-08-19",end:"2022-08-31",total:983,nights:12,expenses:[]},
+  {id:62,type:"normal",destination:"Puglia",start:"2022-09-15",end:"2022-09-18",total:350.87,nights:3,expenses:[]},
+  {id:63,type:"normal",destination:"Costa Azul",start:"2022-11-18",end:"2022-11-21",total:258.6,nights:3,expenses:[]},
+  {id:64,type:"normal",destination:"Bergamo-Verona-Milan",start:"2023-02-09",end:"2023-02-12",total:301.18,nights:3,expenses:[]},
+  {id:65,type:"normal",destination:"Granada",start:"2023-02-03",end:"2023-02-05",total:172,nights:2,expenses:[]},
+  {id:66,type:"normal",destination:"Benicasim 2.0",start:"2023-05-12",end:"2023-05-15",total:136.69,nights:3,expenses:[]},
+  {id:67,type:"normal",destination:"Luxemburgo",start:"2023-06-30",end:"2023-07-02",total:223.54,nights:2,expenses:[]},
+  {id:68,type:"normal",destination:"Cerdeña",start:"2023-07-06",end:"2023-07-10",total:510.03,nights:4,expenses:[]},
+  {id:69,type:"normal",destination:"Cambrils",start:"2023-08-16",end:"2023-08-20",total:333.74,nights:4,expenses:[]},
+  // Cancelados (Perdidas)
+  {id:70,type:"normal",destination:"Belgrado",start:"2024-01-20",end:"2024-01-22",total:19.98,nights:2,statusManual:"cancelado",expenses:[]},
+  {id:71,type:"normal",destination:"Francia Este",start:"2024-09-27",end:"2024-09-29",total:87.25,nights:2,statusManual:"cancelado",expenses:[]}
+];
+window.trips=[]; window.nextId=72;
+
+// ══════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════
+const fmt  = n=>'€'+n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+const fmtK = n=>n>=1000?'€'+(n/1000).toFixed(1)+'k':fmt(n);
+const fmtD = s=>{ if(!s)return'—'; const[y,m,d]=s.split('-'); return`${d}.${m}.${y}`; };
+const getYear  = t=>t.start?t.start.slice(0,4):null;
+const getMonth = t=>t.start?parseInt(t.start.slice(5,7)):null;
+const getYears = ()=>[...new Set(window.trips.map(getYear).filter(Boolean))].sort();
+const getConts = ()=>[...new Set(window.trips.map(t=>geoFor(t.destination)[1]).filter(Boolean))].sort();
+
+function showSS(type,msg){ const el=document.getElementById('save-status'); el.className='save-status visible '+type; document.getElementById('save-msg').textContent=msg; if(type!=='saving') setTimeout(()=>el.classList.remove('visible'),2500); }
+
+// ══════════════════════════════════════════════
+// FILTER STATE per page
+// ══════════════════════════════════════════════
+const F = {
+  dash:     { types:['all'], statuses:['all'], conts:['all'], years:['all'], tripIds:[] },
+  trips:    { types:['all'], statuses:['all'], conts:['all'], years:['all'], tripIds:[] },
+  analytics:{ types:['all'], statuses:['all'], conts:['all'], years:['all'], tripIds:[] },
+  compare:  { types:['all'], statuses:['all'], conts:['all'], years:['all'], tripIds:[] },
+};
+
+function applyFilter(page){
+  const f=F[page]; let arr=[...window.trips];
+  if(!f.types.includes('all'))    arr=arr.filter(t=>f.types.includes(t.type));
+  if(!f.statuses.includes('all')) arr=arr.filter(t=>f.statuses.includes(autoStatus(t)));
+  if(!f.conts.includes('all'))    arr=arr.filter(t=>f.conts.includes(geoFor(t.destination)[1]));
+  if(!f.years.includes('all'))    arr=arr.filter(t=>f.years.includes(getYear(t)));
+  if(f.tripIds.length>0)          arr=arr.filter(t=>f.tripIds.includes(t.id));
+  return arr;
+}
+
+window.resetFilter = function(page){
+  F[page]={types:['all'],statuses:['all'],conts:['all'],years:['all'],tripIds:[]};
+  buildFilterPanel(page); refreshPage(page);
+};
+
+// ══════════════════════════════════════════════
+// FILTER PANEL BUILDER
+// ══════════════════════════════════════════════
+function buildChips(containerId, items, activeArr, cls, onToggle){
+  const el=document.getElementById(containerId); if(!el)return;
+  el.innerHTML=items.map(([val,label])=>
+    `<button class="chip ${cls} ${activeArr.includes(val)?'active':''}" data-val="${val}" onclick="(${onToggle.toString()})('${val}',this,'${containerId}')">${label}</button>`
+  ).join('');
+}
+
+function toggleChip(val, btn, containerId, arr, multi=true){
+  const el=document.getElementById(containerId);
+  if(val==='all'){
+    arr.length=0; arr.push('all');
+    el.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+    btn.classList.add('active');
+  } else {
+    const allBtn=el.querySelector('[data-val="all"]');
+    if(allBtn) allBtn.classList.remove('active');
+    btn.classList.toggle('active');
+    const active=[...el.querySelectorAll('.chip:not([data-val="all"]).active')].map(c=>c.dataset.val);
+    arr.length=0;
+    if(active.length===0){ arr.push('all'); if(allBtn)allBtn.classList.add('active'); }
+    else arr.push(...active);
+  }
+}
+
+function buildFilterPanel(page){
+  const f=F[page]; const years=getYears(); const conts=getConts();
+  const typeItems=[['all','Todos'],['normal','Normal'],['restos','Restos'],['excursion','Excursión']];
+  const statusItems=[['all','Todos'],['finalizado','Finalizado'],['en-curso','En curso'],['cancelado','Cancelado']];
+  const contItems=[['all','Todos'],...conts.map(c=>[c,c])];
+  const yearItems=[['all','Todos'],...years.map(y=>[y,y])];
+
+  if(document.getElementById(`ftype-${page}`)){
+    buildChips(`ftype-${page}`,typeItems,f.types,'c-all',
+      (v,b,cid)=>{ toggleChip(v,b,cid,F[page].types); if(page==='trips')buildFilterPanel(page); updateDD(page); refreshPage(page); });
+    // fix class per type
+    document.querySelectorAll(`#ftype-${page} .chip`).forEach(c=>{
+      const v=c.dataset.val; if(v!=='all') c.classList.add('c-'+v);
+      if(f.types.includes(v)||(f.types.includes('all')&&v==='all')) c.classList.add('active'); else c.classList.remove('active');
+    });
+  }
+  if(document.getElementById(`fstatus-${page}`)){
+    buildChips(`fstatus-${page}`,statusItems,f.statuses,'c-status',
+      (v,b,cid)=>{ toggleChip(v,b,cid,F[page].statuses); updateDD(page); refreshPage(page); });
+    document.querySelectorAll(`#fstatus-${page} .chip`).forEach(c=>{
+      const v=c.dataset.val; if(v!=='all') c.classList.add('c-'+v);
+      if(f.statuses.includes(v)||(f.statuses.includes('all')&&v==='all')) c.classList.add('active'); else c.classList.remove('active');
+    });
+  }
+  if(document.getElementById(`fcont-${page}`)){
+    buildChips(`fcont-${page}`,contItems,f.conts,'c-cont',
+      (v,b,cid)=>{ toggleChip(v,b,cid,F[page].conts); updateDD(page); refreshPage(page); });
+  }
+  if(document.getElementById(`fyear-${page}`)){
+    buildChips(`fyear-${page}`,yearItems,f.years,'c-year',
+      (v,b,cid)=>{ toggleChip(v,b,cid,F[page].years); updateDD(page); refreshPage(page); });
+  }
+  updateDD(page);
+}
+
+// ══════════════════════════════════════════════
+// DROPDOWN (viaje concreto)
+// ══════════════════════════════════════════════
+function getDropdownTrips(page){
+  const f=F[page]; let arr=[...window.trips];
+  if(!f.types.includes('all'))    arr=arr.filter(t=>f.types.includes(t.type));
+  if(!f.statuses.includes('all')) arr=arr.filter(t=>f.statuses.includes(autoStatus(t)));
+  if(!f.conts.includes('all'))    arr=arr.filter(t=>f.conts.includes(geoFor(t.destination)[1]));
+  if(!f.years.includes('all'))    arr=arr.filter(t=>f.years.includes(getYear(t)));
+  return arr.sort((a,b)=>(b.start||'').localeCompare(a.start||''));
+}
+
+function updateDD(page){
+  const menu=document.getElementById(`ddm-${page}`); if(!menu)return;
+  const f=F[page]; const visible=getDropdownTrips(page); const allSel=f.tripIds.length===0;
+  menu.innerHTML=`<div class="dd-opt dd-opt-all" onclick="toggleAllTrips('${page}')"><input type="checkbox" ${allSel?'checked':''} readonly> <span>Todos los viajes</span></div>`
+    +visible.map(t=>`<div class="dd-opt" onclick="toggleTripId('${page}',${t.id})"><input type="checkbox" ${allSel||f.tripIds.includes(t.id)?'checked':''} readonly><span>${t.destination} <span style="color:var(--muted)">(${getYear(t)||'?'})</span></span></div>`).join('');
+  const lbl=document.getElementById(`ddlbl-${page}`); if(!lbl)return;
+  if(allSel) lbl.textContent='Todos';
+  else if(f.tripIds.length===1) lbl.textContent=window.trips.find(t=>t.id===f.tripIds[0])?.destination||'1';
+  else lbl.textContent=`${f.tripIds.length} seleccionados`;
+}
+
+window.toggleDD = function(page){ const m=document.getElementById(`ddm-${page}`); if(m)m.classList.toggle('open'); };
+document.addEventListener('click',e=>{ document.querySelectorAll('.dd-menu.open').forEach(m=>{ if(!m.closest('.dd-wrap').contains(e.target)) m.classList.remove('open'); }); });
+window.toggleAllTrips = function(page){ F[page].tripIds=[]; updateDD(page); refreshPage(page); };
+window.toggleTripId = function(page, id){ const f=F[page]; const idx=f.tripIds.indexOf(id); if(f.tripIds.length===0){f.tripIds=[id];}else{if(idx>-1)f.tripIds.splice(idx,1);else f.tripIds.push(id);} updateDD(page); refreshPage(page); };
+
+// ══════════════════════════════════════════════
+// CHART HELPERS
+// ══════════════════════════════════════════════
+let charts={};
+const gc='#2a2d3a';
+const ts={color:'#7a7f96',font:{size:11,family:'DM Sans'}};
+const bsc={x:{ticks:ts,grid:{color:gc}},y:{ticks:{...ts,callback:v=>'€'+v},grid:{color:gc}}};
+const bscN={x:{ticks:ts,grid:{color:gc}},y:{ticks:ts,grid:{color:gc}}};
+function dc(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+
+// ══════════════════════════════════════════════
+// ACTIVE TRIPS BANNER
+// ══════════════════════════════════════════════
+function renderActiveBanner(){
+  const active=window.trips.filter(t=>autoStatus(t)==='en-curso');
+  const el=document.getElementById('active-banner');
+  if(!active.length){el.innerHTML='';return;}
+  el.innerHTML=active.map(t=>`<div class="active-pill"><div class="active-dot"></div><strong>${t.destination}</strong> <span style="color:var(--muted);font-size:11px">${fmtD(t.start)} → ${fmtD(t.end)}</span></div>`).join('');
+}
+
+// ══════════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════════
+function renderDashboard(){
+  renderActiveBanner();
+  const arr=applyFilter('dash');
+  const total=arr.reduce((s,t)=>s+t.total,0);
+  const nights=arr.reduce((s,t)=>s+t.nights,0);
+  const pn=nights>0?total/nights:0;
+  document.getElementById('s-total').textContent=fmtK(total);
+  document.getElementById('s-total-sub').textContent=arr.length+' viajes';
+  document.getElementById('s-count').textContent=arr.length;
+  document.getElementById('s-count-sub').textContent=[...new Set(arr.map(getYear).filter(Boolean))].sort().join(', ')||'—';
+  document.getElementById('s-pnight').textContent=pn>0?fmt(pn):'—';
+  document.getElementById('s-nights').textContent=nights;
+
+  const years=getYears(); const cy=String(new Date().getFullYear());
+  const yTotals=years.map(y=>arr.filter(t=>getYear(t)===y).reduce((s,t)=>s+t.total,0));
+  dc('yearly'); charts['yearly']=new Chart(document.getElementById('ch-yearly'),{
+    type:'bar',data:{labels:years,datasets:[{data:yTotals,backgroundColor:years.map(y=>y===cy?'#4f9cf9':'rgba(79,156,249,.3)'),borderRadius:6,borderSkipped:false}]},
+    options:{plugins:{legend:{display:false}},scales:bsc}
+  });
+
+  const tT=['normal','restos','excursion'].map(tp=>arr.filter(t=>t.type===tp).reduce((s,t)=>s+t.total,0));
+  dc('types'); charts['types']=new Chart(document.getElementById('ch-types'),{
+    type:'doughnut',data:{labels:['Normal','Restos','Excursión'],datasets:[{data:tT,backgroundColor:['#4f9cf9','#f97b4f','#4fba8a'],borderWidth:0,hoverOffset:6}]},
+    options:{cutout:'65%',plugins:{legend:{display:true,position:'bottom',labels:{color:'#7a7f96',font:{size:11,family:'DM Sans'},padding:10}}}}
+  });
+
+  renderEvolutionChart('ch-evolution-dash', arr);
+}
+
+function renderEvolutionChart(canvasId, arr){
+  const years=getYears();
+  const totals=years.map(y=>arr.filter(t=>getYear(t)===y).reduce((s,t)=>s+t.total,0));
+  const pn=years.map(y=>{const yt=arr.filter(t=>getYear(t)===y);const tot=yt.reduce((s,t)=>s+t.total,0);const nts=yt.filter(t=>t.nights>0).reduce((s,t)=>s+t.nights,0);return nts>0?parseFloat((tot/nts).toFixed(2)):0;});
+  dc(canvasId); charts[canvasId]=new Chart(document.getElementById(canvasId),{
+    type:'bar',data:{labels:years,datasets:[
+      {type:'bar',label:'Total €',data:totals,backgroundColor:'rgba(79,156,249,.5)',borderRadius:4,yAxisID:'y'},
+      {type:'line',label:'€/noche',data:pn,borderColor:'#f5c842',backgroundColor:'transparent',pointBackgroundColor:'#f5c842',tension:.4,yAxisID:'y2'}
+    ]},
+    options:{plugins:{legend:{display:true,position:'top',labels:{color:'#7a7f96',font:{size:11,family:'DM Sans'},padding:10}}},
+      scales:{x:{ticks:ts,grid:{color:gc}},y:{ticks:{...ts,callback:v=>'€'+v},grid:{color:gc}},y2:{position:'right',ticks:{...ts,color:'#f5c842',callback:v=>'€'+v},grid:{display:false}}}}
+  });
+}
+
+// ══════════════════════════════════════════════
+// MIS VIAJES
+// ══════════════════════════════════════════════
+function renderTrips(){
+  const q=(document.getElementById('search-trips')?.value||'').toLowerCase();
+  const arr=applyFilter('trips').filter(t=>{
+    if(q&&!t.destination.toLowerCase().includes(q)&&!geoFor(t.destination)[0].toLowerCase().includes(q)) return false;
+    return true;
+  }).sort((a,b)=>(b.start||'').localeCompare(a.start||''));
+
+  const tLabel={normal:'Normal',restos:'Restos',excursion:'Excursión'};
+  const sLabel={finalizado:'Finalizado','en-curso':'En curso',cancelado:'Cancelado'};
+  document.getElementById('trips-count-label').textContent=`${arr.length} viajes`;
+  document.getElementById('trips-tbody').innerHTML=arr.map(t=>{
+    const geo=geoFor(t.destination); const st=autoStatus(t); const pn=t.nights>0?'€'+(t.total/t.nights).toFixed(2):'—';
+    return`<tr>
+      <td><strong>${t.destination}</strong></td>
+      <td style="color:var(--muted);font-size:12px">${geo[0]}</td>
+      <td><span class="type-badge ${t.type}">${tLabel[t.type]}</span></td>
+      <td><span class="status-badge ${st}">${st==='en-curso'?'⬤ ':st==='cancelado'?'✕ ':''}${sLabel[st]}</span></td>
+      <td>${fmtD(t.start)}</td><td>${fmtD(t.end)}</td>
+      <td>${t.nights||'—'}</td><td><strong>${fmt(t.total)}</strong></td><td>${pn}</td>
+      <td><div class="row-actions">
+        <button class="icon-btn edit" onclick="openModal(${t.id})" title="Editar">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <button class="icon-btn addexp" onclick="openModal(${t.id},true)" title="Añadir gasto">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════
+// ANALYTICS
+// ══════════════════════════════════════════════
+function renderAnalytics(){
+  const arr=applyFilter('analytics');
+  const total=arr.reduce((s,t)=>s+t.total,0);
+  const nights=arr.reduce((s,t)=>s+t.nights,0);
+  const pn=nights>0?total/nights:0;
+  const tripsWithNights=arr.filter(t=>t.nights>0);
+  const avgNights=tripsWithNights.length>0?(tripsWithNights.reduce((s,t)=>s+t.nights,0)/tripsWithNights.length):0;
+  const avgCost=arr.length>0?total/arr.length:0;
+  document.getElementById('an-total').textContent=fmtK(total);
+  document.getElementById('an-trips').textContent=arr.length+' viajes';
+  document.getElementById('an-nights').textContent=nights;
+  document.getElementById('an-pnight').textContent=pn>0?fmt(pn)+'/noche':'—';
+  document.getElementById('an-avg-nights').textContent=avgNights>0?avgNights.toFixed(1):'—';
+  document.getElementById('an-avg-cost').textContent=avgCost>0?fmt(avgCost):'—';
+
+  const months=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const mCosts=months.map((_,i)=>arr.filter(t=>getMonth(t)===i+1).reduce((s,t)=>s+t.total,0));
+  const mNights=months.map((_,i)=>arr.filter(t=>getMonth(t)===i+1).reduce((s,t)=>s+t.nights,0));
+
+  dc('monthly'); charts['monthly']=new Chart(document.getElementById('ch-monthly'),{
+    type:'bar',data:{labels:months,datasets:[{data:mCosts,backgroundColor:'rgba(79,156,249,.6)',borderColor:'#4f9cf9',borderWidth:1,borderRadius:4,borderSkipped:false}]},
+    options:{plugins:{legend:{display:false}},scales:bsc}
+  });
+  dc('nights-month'); charts['nights-month']=new Chart(document.getElementById('ch-nights-month'),{
+    type:'bar',data:{labels:months,datasets:[{data:mNights,backgroundColor:'rgba(245,200,66,.6)',borderColor:'#f5c842',borderWidth:1,borderRadius:4,borderSkipped:false}]},
+    options:{plugins:{legend:{display:false}},scales:bscN}
+  });
+
+  const destMap={};
+  arr.forEach(t=>{destMap[t.destination]=(destMap[t.destination]||0)+t.total;});
+  const sorted=Object.entries(destMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  dc('top-dest'); charts['top-dest']=new Chart(document.getElementById('ch-top-dest'),{
+    type:'bar',data:{labels:sorted.map(([k])=>k),datasets:[{data:sorted.map(([,v])=>v),backgroundColor:'#4fba8a',borderRadius:4,borderSkipped:false}]},
+    options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{...ts,callback:v=>'€'+v},grid:{color:gc}},y:{ticks:{...ts,font:{size:10}},grid:{display:false}}}}
+  });
+
+  const contMap={};
+  arr.forEach(t=>{const c=geoFor(t.destination)[1];contMap[c]=(contMap[c]||0)+t.total;});
+  const cSorted=Object.entries(contMap).sort((a,b)=>b[1]-a[1]);
+  dc('continent'); charts['continent']=new Chart(document.getElementById('ch-continent'),{
+    type:'doughnut',data:{labels:cSorted.map(([k])=>k),datasets:[{data:cSorted.map(([,v])=>v),backgroundColor:['#4f9cf9','#f97b4f','#4fba8a','#f5c842','#9b59b6'],borderWidth:0,hoverOffset:6}]},
+    options:{cutout:'60%',plugins:{legend:{display:true,position:'bottom',labels:{color:'#7a7f96',font:{size:11},padding:10}}}}
+  });
+
+  const s2=arr.filter(t=>t.start).sort((a,b)=>a.start.localeCompare(b.start));
+  let cum=0; const cumData=s2.map(t=>({x:t.start,y:parseFloat((cum+=t.total).toFixed(2))}));
+  dc('cumulative'); charts['cumulative']=new Chart(document.getElementById('ch-cumulative'),{
+    type:'line',data:{datasets:[{data:cumData,borderColor:'#f97b4f',backgroundColor:'rgba(249,123,79,.1)',fill:true,tension:.3,pointRadius:3,pointBackgroundColor:'#f97b4f'}]},
+    options:{parsing:false,plugins:{legend:{display:false}},scales:{
+      x:{type:'time',time:{unit:'month',displayFormats:{month:'MMM yy'}},ticks:{...ts},grid:{color:gc}},
+      y:{ticks:{...ts,callback:v=>'€'+v},grid:{color:gc}}}}
+  });
+
+  const years=getYears();
+  const nyData=years.map(y=>arr.filter(t=>getYear(t)===y).reduce((s,t)=>s+t.nights,0));
+  dc('nights-year'); charts['nights-year']=new Chart(document.getElementById('ch-nights-year'),{
+    type:'bar',data:{labels:years,datasets:[{data:nyData,backgroundColor:'rgba(245,200,66,.5)',borderColor:'#f5c842',borderWidth:1,borderRadius:4,borderSkipped:false}]},
+    options:{plugins:{legend:{display:false}},scales:bscN}
+  });
+}
+
+// ══════════════════════════════════════════════
+// COMPARE
+// ══════════════════════════════════════════════
+function renderCompare(){
+  const arr=applyFilter('compare');
+  const years=getYears(); const cy=String(new Date().getFullYear());
+  document.getElementById('cmp-cards').innerHTML=years.map(y=>{
+    const yt=arr.filter(t=>getYear(t)===y);
+    const tot=yt.reduce((s,t)=>s+t.total,0);
+    const nts=yt.reduce((s,t)=>s+t.nights,0);
+    const prevTot=arr.filter(t=>getYear(t)===String(parseInt(y)-1)).reduce((s,t)=>s+t.total,0);
+    let delta='';
+    if(prevTot>0){const d=((tot-prevTot)/prevTot*100).toFixed(1);const up=d>0;delta=`<div><span class="cmp-delta ${up?'up':'down'}">${up?'↑':'↓'} ${Math.abs(d)}% vs ${parseInt(y)-1}</span></div>`;}
+    return`<div class="cmp-card" style="${y===cy?'border-color:var(--accent)':''}">
+      <div class="stat-label">${y}${y===cy?' ★':''}</div>
+      <div style="font-size:22px;font-weight:700;margin:5px 0">${fmtK(tot)}</div>${delta}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px">
+        <div><div class="stat-label">Viajes</div><strong>${yt.length}</strong></div>
+        <div><div class="stat-label">Noches</div><strong>${nts}</strong></div>
+        <div><div class="stat-label">€/noche</div><strong>${nts>0?fmt(tot/nts):'—'}</strong></div>
+        <div><div class="stat-label">€/viaje</div><strong>${yt.length>0?fmt(tot/yt.length):'—'}</strong></div>
+      </div></div>`;
+  }).join('');
+  renderEvolutionChart('ch-evolution', arr);
+}
+
+// ══════════════════════════════════════════════
+// MODAL
+// ══════════════════════════════════════════════
+let editingId=null, modalExps=[];
+
+window.openModal = function(id, focusExp=false){
+  editingId=id||null;
+  const t=id?window.trips.find(x=>x.id===id):null;
+  const geo=t?geoFor(t.destination):['',''];
+  document.getElementById('modal-title').textContent=id?`Editar — ${t.destination}`:'Nuevo Viaje';
+  document.getElementById('btn-del').style.display=id?'block':'none';
+  document.getElementById('f-dest').value=t?.destination||'';
+  document.getElementById('f-start').value=t?.start||'';
+  document.getElementById('f-end').value=t?.end||'';
+  document.getElementById('f-type').value=t?.type||'normal';
+  document.getElementById('f-status').value=t?.statusManual||'auto';
+  document.getElementById('f-nights').value=t?.nights||'';
+  document.getElementById('f-total').value=t?.total||'';
+  document.getElementById('f-country').value=t?.country||geo[0]||'';
+  document.getElementById('f-continent').value=t?.continent||geo[1]||'';
+  // auto-fill geo on dest change
+  document.getElementById('f-dest').oninput=()=>{
+    const d=document.getElementById('f-dest').value.trim();
+    const g=geoFor(d); if(g[0]!=='Desconocido'){document.getElementById('f-country').value=g[0];document.getElementById('f-continent').value=g[1];}
+  };
+  modalExps=t?[...(t.expenses||[]).map(e=>({...e}))]:[];
+  renderExpList();
+  document.getElementById('modal').style.display='flex';
+  if(focusExp) setTimeout(()=>document.getElementById('exp-desc').focus(),100);
+};
+
+window.closeModal=()=>{ document.getElementById('modal').style.display='none'; };
+window.closeModalOverlay=e=>{ if(e.target===document.getElementById('modal')) closeModal(); };
+
+function renderExpList(){
+  const list=document.getElementById('expense-list');
+  const tr=document.getElementById('exp-total-row');
+  if(!modalExps.length){list.innerHTML='<div class="no-exp">Sin gastos añadidos aún</div>';tr.style.display='none';return;}
+  const sum=modalExps.reduce((s,e)=>s+e.amt,0);
+  list.innerHTML=modalExps.map((e,i)=>`<div class="expense-item"><span class="exp-desc">${e.desc||'Gasto'}</span><span class="exp-amt">${fmt(e.amt)}</span><button class="exp-del" onclick="removeExp(${i})">✕</button></div>`).join('');
+  tr.style.display='flex'; document.getElementById('exp-total-val').textContent=fmt(sum);
+  document.getElementById('f-total').value=sum.toFixed(2);
+}
+window.addExpense=()=>{
+  const desc=document.getElementById('exp-desc').value.trim();
+  const amt=parseFloat(document.getElementById('exp-amt').value);
+  if(isNaN(amt)||amt<=0){alert('Introduce un importe válido');return;}
+  modalExps.push({desc:desc||'Gasto',amt});
+  document.getElementById('exp-desc').value=''; document.getElementById('exp-amt').value='';
+  renderExpList(); document.getElementById('exp-desc').focus();
+};
+window.removeExp=i=>{modalExps.splice(i,1);renderExpList();};
+
+window.saveTrip=()=>{
+  const dest=document.getElementById('f-dest').value.trim(); if(!dest){alert('Introduce un destino');return;}
+  const geo=geoFor(dest);
+  const trip={
+    id:editingId||window.nextId++, destination:dest,
+    start:document.getElementById('f-start').value||null,
+    end:document.getElementById('f-end').value||null,
+    type:document.getElementById('f-type').value,
+    statusManual:document.getElementById('f-status').value,
+    nights:parseInt(document.getElementById('f-nights').value)||0,
+    total:parseFloat(document.getElementById('f-total').value)||0,
+    country:document.getElementById('f-country').value||geo[0],
+    continent:document.getElementById('f-continent').value||geo[1],
+    expenses:[...modalExps]
+  };
+  if(editingId){const idx=window.trips.findIndex(t=>t.id===editingId);window.trips[idx]=trip;}
+  else window.trips.push(trip);
+  closeModal(); window.saveToCloud&&window.saveToCloud(window.trips); refreshAll();
+};
+window.deleteTrip=()=>{
+  if(!confirm('¿Eliminar este viaje?'))return;
+  window.trips=window.trips.filter(t=>t.id!==editingId);
+  closeModal(); window.saveToCloud&&window.saveToCloud(window.trips); refreshAll();
+};
+
+// ══════════════════════════════════════════════
+// NAV
+// ══════════════════════════════════════════════
+window.showPage=function(id,navEl){
+  document.querySelectorAll('.page-section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  (navEl||document.querySelector(`[data-page="${id}"]`)).classList.add('active');
+  refreshPage(id);
+};
+
+function refreshPage(id){
+  if(id==='dashboard'){buildFilterPanel('dash');renderDashboard();}
+  else if(id==='trips'){buildFilterPanel('trips');renderTrips();}
+  else if(id==='analytics'){buildFilterPanel('analytics');renderAnalytics();}
+  else if(id==='compare'){buildFilterPanel('compare');renderCompare();}
+}
+function refreshAll(){ const id=document.querySelector('.page-section.active')?.id.replace('page-',''); if(id)refreshPage(id); }
+window.refreshCurrent=refreshAll;
+
+window.initApp=function(){
+  // load time adapter then render
+  if(!window._taLoaded){
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/chartjs-adapter-date-fns/3.0.0/chartjs-adapter-date-fns.bundle.min.js';
+    s.onload=()=>{window._taLoaded=true;refreshPage('dashboard');};
+    document.head.appendChild(s);
+  } else { refreshPage('dashboard'); }
+};
+</script>
+</body>
+</html>
