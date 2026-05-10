@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trip Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap');
+:root {
+  --bg:#0d0f14; --surface:#161820; --surface2:#1e2029; --border:#2a2d3a;
+  --text:#e8eaf0; --muted:#7a7f96; --accent:#4f9cf9;
+  --normal:#4f9cf9; --restos:#f97b4f; --excursion:#4fba8a; --gold:#f5c842;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;}
+
+/* ── LOGIN SCREEN ── */
+#login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:48px 40px;text-align:center;max-width:380px;width:100%;}
+.login-card h1{font-family:'DM Serif Display',serif;font-size:32px;margin-bottom:8px;}
+.login-card p{color:var(--muted);font-size:14px;margin-bottom:32px;line-height:1.6;}
+.btn-google{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;padding:13px 20px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;}
+.btn-google:hover{border-color:var(--accent);background:rgba(79,156,249,.07);}
+.btn-google svg{width:20px;height:20px;flex-shrink:0;}
+.login-note{color:var(--muted);font-size:11px;margin-top:20px;line-height:1.6;}
+
+/* ── APP ── */
+#app-screen{display:none;}
+.app{display:flex;min-height:100vh;}
+
+/* SIDEBAR */
+.sidebar{width:220px;background:var(--surface);border-right:1px solid var(--border);padding:28px 0;display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100;}
+.logo{padding:0 24px 20px;border-bottom:1px solid var(--border);margin-bottom:16px;}
+.logo h1{font-family:'DM Serif Display',serif;font-size:22px;letter-spacing:-.5px;}
+.logo p{color:var(--muted);font-size:11px;margin-top:2px;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 24px;cursor:pointer;color:var(--muted);font-size:13px;font-weight:500;transition:all .15s;border-left:3px solid transparent;}
+.nav-item:hover{color:var(--text);background:var(--surface2);}
+.nav-item.active{color:var(--accent);border-left-color:var(--accent);background:rgba(79,156,249,.07);}
+.nav-item svg{width:16px;height:16px;flex-shrink:0;}
+.sidebar-footer{margin-top:auto;padding:16px 24px;border-top:1px solid var(--border);}
+.user-info{display:flex;align-items:center;gap:10px;}
+.user-avatar{width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid var(--border);}
+.user-avatar-placeholder{width:32px;height:32px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0;}
+.user-name{font-size:12px;font-weight:500;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.btn-logout{background:none;border:none;cursor:pointer;color:var(--muted);padding:4px;border-radius:4px;transition:color .15s;display:flex;}
+.btn-logout:hover{color:#f94f4f;}
+
+.main{margin-left:220px;flex:1;padding:32px;max-width:1300px;}
+.page-header{margin-bottom:24px;}
+.page-header h2{font-family:'DM Serif Display',serif;font-size:28px;font-weight:400;}
+.page-header p{color:var(--muted);margin-top:4px;font-size:13px;}
+.page-section{display:none;}
+.page-section.active{display:block;}
+
+/* SAVE STATUS */
+.save-status{position:fixed;bottom:20px;right:20px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:7px;z-index:500;opacity:0;transition:opacity .3s;pointer-events:none;}
+.save-status.visible{opacity:1;}
+.save-status.saving{color:var(--accent);}
+.save-status.saved{color:var(--excursion);}
+.save-status.error{color:#f94f4f;}
+.save-dot{width:7px;height:7px;border-radius:50%;background:currentColor;}
+
+/* LOADING */
+.loading-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;flex-direction:column;gap:16px;}
+.loading-spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{color:var(--muted);font-size:13px;}
+
+/* STATS */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;position:relative;overflow:hidden;}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
+.stat-card.blue::before{background:var(--normal);}
+.stat-card.orange::before{background:var(--restos);}
+.stat-card.green::before{background:var(--excursion);}
+.stat-card.gold::before{background:var(--gold);}
+.stat-label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;}
+.stat-value{font-size:24px;font-weight:600;line-height:1;}
+.stat-sub{color:var(--muted);font-size:11px;margin-top:6px;}
+
+/* FILTER PANEL */
+.filter-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:20px;}
+.filter-panel-title{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;}
+.filter-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;align-items:start;}
+.filter-group label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:6px;}
+.filter-chips{display:flex;flex-wrap:wrap;gap:5px;}
+.chip{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);transition:all .15s;font-family:inherit;}
+.chip:hover{color:var(--text);border-color:var(--muted);}
+.chip.active{color:#fff;border-color:transparent;}
+.chip.all.active,.chip.year.active{background:var(--accent);}
+.chip.normal.active{background:var(--normal);}
+.chip.restos.active{background:var(--restos);}
+.chip.excursion.active{background:var(--excursion);}
+.filter-reset{font-size:11px;color:var(--accent);cursor:pointer;font-weight:600;}
+.filter-reset:hover{text-decoration:underline;}
+
+/* TRIP DROPDOWN */
+.trip-dropdown-wrap{position:relative;}
+.trip-dropdown-btn{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 12px;color:var(--text);font-family:inherit;font-size:12px;cursor:pointer;text-align:left;display:flex;align-items:center;justify-content:space-between;}
+.trip-dropdown-btn svg{width:12px;height:12px;flex-shrink:0;}
+.trip-dropdown-menu{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:8px;z-index:200;max-height:220px;overflow-y:auto;display:none;}
+.trip-dropdown-menu.open{display:block;}
+.trip-option{display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;font-size:12px;color:var(--muted);transition:all .12s;}
+.trip-option:hover{background:var(--border);color:var(--text);}
+.trip-option input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;flex-shrink:0;}
+.trip-option-all{border-bottom:1px solid var(--border);font-weight:600;color:var(--text);}
+
+/* CHARTS */
+.charts-grid{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:14px;}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;}
+.chart-title{font-weight:600;font-size:13px;margin-bottom:3px;}
+.chart-sub{color:var(--muted);font-size:11px;margin-bottom:18px;}
+
+/* TRIPS TABLE */
+.trips-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px;flex-wrap:wrap;}
+.search-box{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 12px;flex:1;max-width:280px;}
+.search-box input{background:none;border:none;outline:none;color:var(--text);font-family:inherit;font-size:13px;width:100%;}
+.search-box input::placeholder{color:var(--muted);}
+.filter-tabs{display:flex;gap:5px;}
+.filter-tab{padding:6px 13px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);transition:all .15s;font-family:inherit;}
+.filter-tab:hover{color:var(--text);}
+.filter-tab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.filter-tab.normal.active{background:var(--normal);border-color:var(--normal);}
+.filter-tab.restos.active{background:var(--restos);border-color:var(--restos);}
+.filter-tab.excursion.active{background:var(--excursion);border-color:var(--excursion);}
+.btn-add{display:flex;align-items:center;gap:6px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 15px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;}
+.btn-add:hover{background:#3b87e8;}
+.trips-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;overflow-x:auto;}
+.trips-table{width:100%;border-collapse:collapse;min-width:700px;}
+.trips-table th{text-align:left;padding:9px 12px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--border);font-weight:500;white-space:nowrap;}
+.trips-table td{padding:11px 12px;border-bottom:1px solid var(--border);font-size:13px;}
+.trips-table tr:hover td{background:var(--surface2);}
+.trips-table tr:last-child td{border-bottom:none;}
+.type-badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;}
+.type-badge.normal{background:rgba(79,156,249,.15);color:var(--normal);}
+.type-badge.restos{background:rgba(249,123,79,.15);color:var(--restos);}
+.type-badge.excursion{background:rgba(79,186,138,.15);color:var(--excursion);}
+.row-actions{display:flex;gap:4px;}
+.icon-btn{background:none;border:none;cursor:pointer;padding:5px;color:var(--muted);border-radius:5px;transition:all .15s;display:flex;align-items:center;}
+.icon-btn:hover{color:var(--text);background:var(--border);}
+.icon-btn.edit:hover{color:var(--accent);}
+.icon-btn.add-expense:hover{color:var(--excursion);}
+
+/* ANALYTICS */
+.year-filter{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;}
+.year-btn{padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);transition:all .15s;font-family:inherit;}
+.year-btn:hover{color:var(--text);}
+.year-btn.active{background:var(--surface2);border-color:var(--accent);color:var(--accent);}
+
+/* COMPARE */
+.compare-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;margin-bottom:20px;}
+.compare-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;}
+.compare-delta{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:3px 8px;border-radius:4px;margin-top:4px;}
+.compare-delta.up{background:rgba(79,186,138,.15);color:var(--excursion);}
+.compare-delta.down{background:rgba(249,79,79,.15);color:#f94f4f;}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:26px;width:100%;max-width:500px;animation:fadeUp .2s ease;max-height:90vh;overflow-y:auto;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:translateY(0)}}
+.modal h3{font-family:'DM Serif Display',serif;font-size:20px;margin-bottom:18px;}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.form-group{margin-bottom:13px;}
+.form-group label{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;}
+.form-group input,.form-group select{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-family:inherit;font-size:13px;outline:none;transition:border-color .15s;}
+.form-group input:focus,.form-group select:focus{border-color:var(--accent);}
+.form-group select option{background:var(--surface2);}
+.modal-actions{display:flex;gap:10px;margin-top:18px;justify-content:flex-end;}
+.btn-cancel{padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:inherit;font-size:13px;cursor:pointer;}
+.btn-save{padding:8px 16px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;}
+.btn-delete{padding:8px 16px;border-radius:8px;border:none;background:rgba(249,79,79,.15);color:#f94f4f;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;margin-right:auto;}
+.modal-divider{border:none;border-top:1px solid var(--border);margin:16px 0;}
+.expense-list{margin-bottom:10px;}
+.expense-item{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--surface2);border-radius:7px;margin-bottom:5px;font-size:12px;}
+.expense-item-desc{color:var(--text);flex:1;}
+.expense-item-amount{color:var(--gold);font-weight:600;margin-left:10px;white-space:nowrap;}
+.expense-item-del{background:none;border:none;color:var(--muted);cursor:pointer;padding:2px 6px;border-radius:4px;font-size:14px;line-height:1;}
+.expense-item-del:hover{color:#f94f4f;}
+.add-expense-row{display:flex;gap:7px;margin-top:6px;}
+.add-expense-row input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-family:inherit;font-size:12px;outline:none;}
+.add-expense-row input:focus{border-color:var(--accent);}
+.btn-add-exp{background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--accent);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;padding:7px 12px;white-space:nowrap;}
+.btn-add-exp:hover{border-color:var(--accent);}
+.expense-total-row{display:flex;justify-content:space-between;padding:7px 10px;background:rgba(245,200,66,.07);border-radius:7px;font-size:12px;font-weight:600;color:var(--gold);margin-top:4px;}
+.no-expenses-msg{color:var(--muted);font-size:12px;padding:4px 0 8px;}
+
+@media(max-width:768px){
+  .sidebar{width:100%;height:auto;position:relative;flex-direction:row;padding:10px 0;overflow-x:auto;border-right:none;border-bottom:1px solid var(--border);}
+  .logo{display:none;}.sidebar-footer{display:none;}
+  .nav-item{padding:8px 14px;border-left:none;border-bottom:3px solid transparent;white-space:nowrap;}
+  .nav-item.active{border-bottom-color:var(--accent);border-left:none;}
+  .app{flex-direction:column;}.main{margin-left:0;padding:14px;}
+  .stats-grid{grid-template-columns:1fr 1fr;}
+  .charts-grid{grid-template-columns:1fr;}
+  .filter-row{grid-template-columns:1fr;}
+  .form-row{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="loading-overlay" id="loading-overlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">Cargando…</div>
+</div>
+
+<!-- LOGIN -->
+<div id="login-screen" style="display:none">
+  <div class="login-card">
+    <div style="font-size:48px;margin-bottom:16px">✈️</div>
+    <h1>Trip Tracker</h1>
+    <p>Tu diario de viajes personal.<br>Inicia sesión para acceder a tus datos.</p>
+    <button class="btn-google" onclick="loginGoogle()">
+      <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+      Continuar con Google
+    </button>
+    <p class="login-note">Tus datos se guardan en la nube y están disponibles desde cualquier dispositivo.</p>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app-screen">
+<div class="app">
+
+<nav class="sidebar">
+  <div class="logo"><h1>✈ Trips</h1><p>Tu diario de viajes</p></div>
+  <div class="nav-item active" data-page="dashboard" onclick="showPage('dashboard',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Dashboard
+  </div>
+  <div class="nav-item" data-page="trips" onclick="showPage('trips',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>Mis Viajes
+  </div>
+  <div class="nav-item" data-page="analytics" onclick="showPage('analytics',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Análisis
+  </div>
+  <div class="nav-item" data-page="compare" onclick="showPage('compare',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Comparar Años
+  </div>
+  <div class="sidebar-footer">
+    <div class="user-info">
+      <div class="user-avatar-placeholder" id="user-avatar-placeholder">?</div>
+      <img class="user-avatar" id="user-avatar" style="display:none" src="" alt="">
+      <span class="user-name" id="user-name">—</span>
+      <button class="btn-logout" onclick="logout()" title="Cerrar sesión">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<main class="main">
+
+  <!-- DASHBOARD -->
+  <section class="page-section active" id="page-dashboard">
+    <div class="page-header"><h2>Dashboard</h2><p>Resumen de tus viajes con filtros</p></div>
+    <div class="filter-panel">
+      <div class="filter-panel-title"><span>Filtros</span><span class="filter-reset" onclick="resetDashFilters()">Resetear todo</span></div>
+      <div class="filter-row">
+        <div class="filter-group">
+          <label>Tipo de viaje</label>
+          <div class="filter-chips" id="type-chips">
+            <button class="chip all active" onclick="toggleTypeChip('all',this)">Todos</button>
+            <button class="chip normal" onclick="toggleTypeChip('normal',this)">Normal</button>
+            <button class="chip restos" onclick="toggleTypeChip('restos',this)">Restos</button>
+            <button class="chip excursion" onclick="toggleTypeChip('excursion',this)">Excursión</button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <label>Año</label>
+          <div class="filter-chips" id="year-chips"></div>
+        </div>
+        <div class="filter-group">
+          <label>Viaje concreto</label>
+          <div class="trip-dropdown-wrap" id="trip-dropdown-wrap">
+            <button class="trip-dropdown-btn" onclick="toggleTripDropdown()">
+              <span id="trip-dropdown-label">Todos los viajes</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="trip-dropdown-menu" id="trip-dropdown-menu"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card blue"><div class="stat-label">Gasto total</div><div class="stat-value" id="s-total">—</div><div class="stat-sub" id="s-total-sub"></div></div>
+      <div class="stat-card gold"><div class="stat-label">Nº de viajes</div><div class="stat-value" id="s-count">—</div><div class="stat-sub" id="s-count-sub"></div></div>
+      <div class="stat-card green"><div class="stat-label">Gasto / noche</div><div class="stat-value" id="s-pnight">—</div><div class="stat-sub">promedio filtrado</div></div>
+      <div class="stat-card orange"><div class="stat-label">Nº de noches</div><div class="stat-value" id="s-nights">—</div><div class="stat-sub">noches en total</div></div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card"><div class="chart-title">Gasto por año</div><div class="chart-sub">Total € anual</div><canvas id="ch-yearly" height="200"></canvas></div>
+      <div class="chart-card"><div class="chart-title">Por tipo</div><div class="chart-sub">Distribución del gasto</div><canvas id="ch-types" height="200"></canvas></div>
+    </div>
+    <div class="chart-card"><div class="chart-title">Coste por noche — por año</div><div class="chart-sub">€ / noche media anual</div><canvas id="ch-pernightyr" height="120"></canvas></div>
+  </section>
+
+  <!-- MIS VIAJES -->
+  <section class="page-section" id="page-trips">
+    <div class="page-header"><h2>Mis Viajes</h2><p>Todos tus viajes registrados</p></div>
+    <div class="trips-toolbar">
+      <div class="search-box">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="search-input" placeholder="Buscar destino…" oninput="renderTrips()">
+      </div>
+      <div class="filter-tabs">
+        <button class="filter-tab active" onclick="setTripFilter('all',this)">Todos</button>
+        <button class="filter-tab normal" onclick="setTripFilter('normal',this)">Normal</button>
+        <button class="filter-tab restos" onclick="setTripFilter('restos',this)">Restos</button>
+        <button class="filter-tab excursion" onclick="setTripFilter('excursion',this)">Excursión</button>
+      </div>
+      <button class="btn-add" onclick="openTripModal(null)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Nuevo Viaje
+      </button>
+    </div>
+    <div class="trips-card">
+      <table class="trips-table">
+        <thead><tr>
+          <th>Destino</th><th>Tipo</th><th>Inicio</th><th>Fin</th>
+          <th>Noches</th><th>Total</th><th>€/noche</th><th style="width:80px"></th>
+        </tr></thead>
+        <tbody id="trips-tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ANÁLISIS -->
+  <section class="page-section" id="page-analytics">
+    <div class="page-header"><h2>Análisis</h2><p>Tendencias y patrones de gasto</p></div>
+    <div class="year-filter" id="yr-filter-analytics"></div>
+    <div class="charts-grid" style="margin-bottom:14px">
+      <div class="chart-card"><div class="chart-title">Gasto mensual</div><div class="chart-sub" id="monthly-label">Por meses</div><canvas id="ch-monthly" height="220"></canvas></div>
+      <div class="chart-card"><div class="chart-title">Top destinos</div><div class="chart-sub">Por gasto total (€)</div><canvas id="ch-top-dest" height="220"></canvas></div>
+    </div>
+    <div class="chart-card"><div class="chart-title">Gasto acumulado</div><div class="chart-sub">Evolución del gasto durante el período</div><canvas id="ch-cumulative" height="130"></canvas></div>
+  </section>
+
+  <!-- COMPARAR -->
+  <section class="page-section" id="page-compare">
+    <div class="page-header"><h2>Comparar Años</h2><p>¿Gastas más o menos que antes?</p></div>
+    <div class="compare-grid" id="compare-cards"></div>
+    <div class="chart-card"><div class="chart-title">Evolución histórica</div><div class="chart-sub">Gasto total y €/noche por año</div><canvas id="ch-evolution" height="180"></canvas></div>
+  </section>
+
+</main>
+</div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal" style="display:none" onclick="closeModalOverlay(event)">
+<div class="modal">
+  <h3 id="modal-title">Nuevo Viaje</h3>
+  <div class="form-group"><label>Destino</label><input type="text" id="f-dest" placeholder="Ej: Lisboa"></div>
+  <div class="form-row">
+    <div class="form-group"><label>Fecha inicio</label><input type="date" id="f-start"></div>
+    <div class="form-group"><label>Fecha fin</label><input type="date" id="f-end"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label>Tipo</label>
+      <select id="f-type"><option value="normal">Normal</option><option value="restos">Restos</option><option value="excursion">Excursión</option></select>
+    </div>
+    <div class="form-group"><label>Noches</label><input type="number" id="f-nights" min="0" placeholder="0"></div>
+  </div>
+  <hr class="modal-divider">
+  <div class="form-group">
+    <label style="margin-bottom:10px;display:block;">Gastos del viaje</label>
+    <div class="expense-list" id="expense-list"></div>
+    <div class="add-expense-row">
+      <input type="text" id="exp-desc" placeholder="Descripción (vuelo, hotel…)" onkeydown="if(event.key==='Enter')addExpense()">
+      <input type="number" id="exp-amount" placeholder="€" min="0" step="0.01" style="max-width:90px" onkeydown="if(event.key==='Enter')addExpense()">
+      <button class="btn-add-exp" onclick="addExpense()">+ Añadir</button>
+    </div>
+    <div class="expense-total-row" id="expense-total-row" style="display:none"><span>Total gastos</span><span id="expense-total-val">€0.00</span></div>
+  </div>
+  <div class="form-group">
+    <label>Coste total (€) <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;font-size:10px">(se actualiza con los gastos)</span></label>
+    <input type="number" id="f-total" min="0" step="0.01" placeholder="0.00">
+  </div>
+  <div class="modal-actions">
+    <button class="btn-delete" id="btn-del" style="display:none" onclick="deleteTrip()">Eliminar</button>
+    <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
+    <button class="btn-save" onclick="saveTrip()">Guardar</button>
+  </div>
+</div>
+</div>
+
+<!-- SAVE STATUS -->
+<div class="save-status" id="save-status"><div class="save-dot"></div><span id="save-msg">Guardado</span></div>
+
+<!-- FIREBASE -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, onSnapshot }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD8kDwfnU_7nZg_V_rpC6X7o7lQqQI4Dng",
+  authDomain: "gastosviajes-d4c55.firebaseapp.com",
+  projectId: "gastosviajes-d4c55",
+  storageBucket: "gastosviajes-d4c55.firebasestorage.app",
+  messagingSenderId: "907688615645",
+  appId: "1:907688615645:web:e19ff98391edfc618bc534"
+};
+
+const fbApp  = initializeApp(firebaseConfig);
+const auth   = getAuth(fbApp);
+const db     = getFirestore(fbApp);
+const provider = new GoogleAuthProvider();
+
+let currentUid = null;
+let saveTimeout = null;
+let unsubSnapshot = null;
+
+// expose to global scope
+window._fb = { auth, db, provider, GoogleAuthProvider, signInWithPopup, signOut };
+
+window.loginGoogle = async () => {
+  try { await signInWithPopup(auth, provider); }
+  catch(e){ console.error(e); alert('Error al iniciar sesión: '+e.message); }
+};
+
+window.logout = async () => {
+  if(unsubSnapshot) unsubSnapshot();
+  await signOut(auth);
+};
+
+window.saveToCloud = async (tripsData) => {
+  if(!currentUid) return;
+  showSaveStatus('saving','Guardando…');
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(async () => {
+    try {
+      await setDoc(doc(db,'users',currentUid), { trips: tripsData, updatedAt: Date.now() });
+      showSaveStatus('saved','Guardado ✓');
+    } catch(e) {
+      console.error(e); showSaveStatus('error','Error al guardar');
+    }
+  }, 800);
+};
+
+onAuthStateChanged(auth, async user => {
+  document.getElementById('loading-overlay').style.display = 'none';
+  if (!user) {
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('app-screen').style.display = 'none';
+    currentUid = null;
+    if(unsubSnapshot){ unsubSnapshot(); unsubSnapshot=null; }
+    return;
+  }
+  currentUid = user.uid;
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-screen').style.display = 'block';
+
+  // user info in sidebar
+  const name = user.displayName || user.email || 'Usuario';
+  document.getElementById('user-name').textContent = name.split(' ')[0];
+  if(user.photoURL){
+    document.getElementById('user-avatar').src = user.photoURL;
+    document.getElementById('user-avatar').style.display = 'block';
+    document.getElementById('user-avatar-placeholder').style.display = 'none';
+  } else {
+    document.getElementById('user-avatar-placeholder').textContent = name[0].toUpperCase();
+  }
+
+  // load or seed data
+  const ref = doc(db,'users',currentUid);
+  const snap = await getDoc(ref);
+  if(snap.exists() && snap.data().trips && snap.data().trips.length > 0){
+    window.trips = snap.data().trips;
+  } else {
+    // seed with initial data
+    await setDoc(ref, { trips: window.SEED_TRIPS, updatedAt: Date.now() });
+    window.trips = [...window.SEED_TRIPS];
+  }
+  window.nextId = Math.max(...window.trips.map(t=>t.id), 0) + 1;
+
+  // live listener (multi-device sync)
+  if(unsubSnapshot) unsubSnapshot();
+  unsubSnapshot = onSnapshot(ref, snap2 => {
+    if(snap2.exists() && snap2.data().trips){
+      window.trips = snap2.data().trips;
+      window.nextId = Math.max(...window.trips.map(t=>t.id),0)+1;
+      window.refreshCurrent && window.refreshCurrent();
+    }
+  });
+
+  // init UI
+  window.buildYearChips();
+  window.buildTripDropdown();
+  window.renderDashboard();
+});
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════
+// SEED DATA — 69 trips (50 original + 19 Estimaciones)
+// ══════════════════════════════════════════════════════
+window.SEED_TRIPS = [
+  // ── NORMAL (realizados) ──
+  {id:1,type:"normal",destination:"Grecia",start:"2023-09-19",end:"2023-09-26",total:686.55,nights:7,expenses:[{desc:"Vuelo",amt:320},{desc:"Hotel",amt:250},{desc:"Comidas y transporte",amt:116.55}]},
+  {id:2,type:"normal",destination:"Pescara",start:"2023-10-25",end:"2023-10-28",total:336,nights:3,expenses:[]},
+  {id:3,type:"normal",destination:"Copenhague",start:"2023-11-09",end:"2023-11-12",total:354.65,nights:3,expenses:[]},
+  {id:4,type:"normal",destination:"Napoles",start:"2024-03-08",end:"2024-03-15",total:624.68,nights:7,expenses:[]},
+  {id:5,type:"normal",destination:"Escocia",start:"2024-04-03",end:"2024-04-08",total:351.13,nights:5,expenses:[]},
+  {id:6,type:"normal",destination:"Chipre",start:"2024-04-12",end:"2024-04-16",total:348.21,nights:4,expenses:[]},
+  {id:7,type:"normal",destination:"Polonia",start:"2024-05-11",end:"2024-05-15",total:435.47,nights:4,expenses:[]},
+  {id:8,type:"normal",destination:"Vilna - Riga",start:"2024-06-11",end:"2024-06-15",total:256.36,nights:4,expenses:[]},
+  {id:9,type:"normal",destination:"Suiza",start:"2024-08-30",end:"2024-09-01",total:204.65,nights:2,expenses:[]},
+  {id:10,type:"normal",destination:"Austria e Italia",start:"2024-09-05",end:"2024-09-06",total:103.57,nights:1,expenses:[]},
+  {id:11,type:"normal",destination:"Nis y Sofia",start:"2024-10-03",end:"2024-10-06",total:285.43,nights:3,expenses:[]},
+  {id:12,type:"normal",destination:"Navarra",start:"2024-12-05",end:"2024-12-08",total:291.99,nights:3,expenses:[]},
+  {id:13,type:"normal",destination:"Estambul",start:"2024-12-14",end:"2024-12-18",total:434.07,nights:4,expenses:[]},
+  {id:14,type:"normal",destination:"Balcanes-Suroeste",start:"2025-02-18",end:"2025-02-25",total:507.34,nights:7,expenses:[]},
+  {id:15,type:"normal",destination:"Gran Moldavia",start:"2025-03-29",end:"2025-03-31",total:173.58,nights:2,expenses:[]},
+  {id:16,type:"normal",destination:"Austria-Friuli-Maribor",start:"2025-04-10",end:"2025-04-13",total:258.2,nights:3,expenses:[]},
+  {id:17,type:"normal",destination:"Francia Este - Suiza",start:"2025-04-20",end:"2025-04-21",total:135.76,nights:1,expenses:[]},
+  {id:18,type:"normal",destination:"Georgia - Armenia",start:"2025-04-29",end:"2025-05-04",total:585.26,nights:5,expenses:[]},
+  {id:19,type:"normal",destination:"Casa Rural Mota",start:"2025-05-23",end:"2025-05-25",total:142.16,nights:2,expenses:[]},
+  {id:20,type:"normal",destination:"Silesia y Moravia",start:"2025-06-06",end:"2025-06-09",total:299.31,nights:3,expenses:[]},
+  {id:21,type:"normal",destination:"Viena",start:"2025-08-08",end:"2025-08-10",total:283.04,nights:2,expenses:[]},
+  {id:22,type:"normal",destination:"Malaga",start:"2025-08-14",end:"2025-08-17",total:467.23,nights:3,expenses:[]},
+  {id:23,type:"normal",destination:"Grecia Norte",start:"2025-09-11",end:"2025-09-15",total:536.45,nights:4,expenses:[]},
+  {id:24,type:"normal",destination:"Logroño",start:"2025-10-17",end:"2025-10-19",total:240.65,nights:2,expenses:[]},
+  {id:25,type:"normal",destination:"Marrakech",start:"2025-12-12",end:"2025-12-15",total:319.53,nights:3,expenses:[]},
+  {id:26,type:"normal",destination:"Melilla",start:"2026-02-19",end:"2026-02-22",total:252.93,nights:3,expenses:[]},
+  {id:27,type:"normal",destination:"Calabria",start:"2026-03-13",end:"2026-03-16",total:313.23,nights:3,expenses:[]},
+  {id:28,type:"normal",destination:"Toulouse",start:"2026-04-17",end:"2026-04-20",total:341.54,nights:3,expenses:[]},
+  {id:29,type:"normal",destination:"China",start:"2026-08-24",end:"2026-09-01",total:743.78,nights:9,expenses:[]},
+  // ── RESTOS ──
+  {id:30,type:"restos",destination:"Alemania Oeste",start:"2024-08-12",end:"2024-08-18",total:53.6,nights:6,expenses:[]},
+  {id:31,type:"restos",destination:"El Hierro",start:"2024-11-18",end:"2024-11-20",total:185.51,nights:2,expenses:[]},
+  {id:32,type:"restos",destination:"Vuelo Alicante-MUC",start:"2025-06-01",end:"2025-06-02",total:175.2,nights:1,expenses:[]},
+  {id:33,type:"restos",destination:"Hike Fischbachau",start:"2025-06-28",end:"2025-06-29",total:71.99,nights:1,expenses:[]},
+  {id:34,type:"restos",destination:"Helsinki - Tallin",start:"2025-08-21",end:"2025-08-24",total:140.4,nights:3,expenses:[]},
+  {id:35,type:"restos",destination:"Italia Noroeste",start:"2025-08-27",end:"2025-08-31",total:110.3,nights:4,expenses:[]},
+  {id:36,type:"restos",destination:"Alentejo y Mérida",start:"2025-11-08",end:"2025-11-10",total:8.09,nights:2,expenses:[]},
+  {id:37,type:"restos",destination:"MAD/MUC",start:"2025-11-14",end:"2025-11-17",total:218.4,nights:3,expenses:[]},
+  {id:38,type:"restos",destination:"Nápoles",start:"2026-01-22",end:"2026-01-25",total:65.4,nights:3,expenses:[]},
+  {id:39,type:"restos",destination:"Pais Vasco",start:"2026-02-27",end:"2026-03-01",total:197.93,nights:2,expenses:[]},
+  {id:40,type:"restos",destination:"MAD/HAM",start:"2026-05-13",end:"2026-05-17",total:165.45,nights:4,expenses:[]},
+  {id:41,type:"restos",destination:"Gdansk",start:"2026-05-17",end:"2026-05-18",total:107.59,nights:1,expenses:[]},
+  {id:42,type:"restos",destination:"Serbia y Rumania",start:"2026-08-09",end:"2026-08-15",total:0,nights:7,expenses:[]},
+  // ── EXCURSIONES ──
+  {id:43,type:"excursion",destination:"Bamberg-Bayreuth",start:"2024-04-26",end:"2024-04-26",total:14.45,nights:0,expenses:[]},
+  {id:44,type:"excursion",destination:"Turingia-Naumburg",start:"2024-05-06",end:"2024-05-06",total:53.36,nights:0,expenses:[]},
+  {id:45,type:"excursion",destination:"Feldkirch-Liechtenstein",start:"2024-05-09",end:"2024-05-09",total:31.05,nights:0,expenses:[]},
+  {id:46,type:"excursion",destination:"Würzburg-Fulda",start:"2024-09-19",end:"2024-09-19",total:22.95,nights:0,expenses:[]},
+  {id:47,type:"excursion",destination:"Trento-Bolzano",start:"2024-09-22",end:"2024-09-22",total:45.75,nights:0,expenses:[]},
+  {id:48,type:"excursion",destination:"Rodas Suizas",start:"2025-02-03",end:"2025-02-03",total:17.04,nights:0,expenses:[]},
+  {id:49,type:"excursion",destination:"Gerona",start:"2025-05-05",end:"2025-05-05",total:52.33,nights:0,expenses:[]},
+  {id:50,type:"excursion",destination:"Oslo",start:"2026-09-01",end:"2026-09-01",total:152,nights:0,expenses:[]},
+  // ── ESTIMACIONES (2020-2023, tipo normal) ──
+  {id:51,type:"normal",destination:"Berlin",start:"2020-02-14",end:"2020-02-18",total:294.64,nights:4,expenses:[]},
+  {id:52,type:"normal",destination:"Calpe",start:"2020-07-21",end:"2020-07-28",total:374.22,nights:7,expenses:[]},
+  {id:53,type:"normal",destination:"Gran Canaria",start:"2020-09-11",end:"2020-09-14",total:638.42,nights:3,expenses:[]},
+  {id:54,type:"normal",destination:"Benissa",start:"2021-07-17",end:"2021-07-24",total:472.19,nights:7,expenses:[]},
+  {id:55,type:"normal",destination:"Estepona",start:"2021-07-26",end:"2021-07-30",total:236,nights:4,expenses:[]},
+  {id:56,type:"normal",destination:"Roma",start:"2021-09-16",end:"2021-09-20",total:356.72,nights:4,expenses:[]},
+  {id:57,type:"normal",destination:"Córdoba",start:"2022-03-04",end:"2022-03-06",total:112.84,nights:2,expenses:[]},
+  {id:58,type:"normal",destination:"Belgica",start:"2022-03-12",end:"2022-03-15",total:302.99,nights:3,expenses:[]},
+  {id:59,type:"normal",destination:"Benicasim",start:"2022-04-22",end:"2022-04-24",total:82.11,nights:2,expenses:[]},
+  {id:60,type:"normal",destination:"Malta",start:"2022-07-20",end:"2022-07-27",total:919.56,nights:7,expenses:[]},
+  {id:61,type:"normal",destination:"Oesterrail",start:"2022-08-19",end:"2022-08-31",total:983,nights:12,expenses:[]},
+  {id:62,type:"normal",destination:"Puglia",start:"2022-09-15",end:"2022-09-18",total:350.87,nights:3,expenses:[]},
+  {id:63,type:"normal",destination:"Costa Azul",start:"2022-11-18",end:"2022-11-21",total:258.6,nights:3,expenses:[]},
+  {id:64,type:"normal",destination:"Bergamo-Verona-Milan",start:"2023-02-09",end:"2023-02-12",total:301.18,nights:3,expenses:[]},
+  {id:65,type:"normal",destination:"Granada",start:"2023-02-03",end:"2023-02-05",total:172,nights:2,expenses:[]},
+  {id:66,type:"normal",destination:"Benicasim 2.0",start:"2023-05-12",end:"2023-05-15",total:136.69,nights:3,expenses:[]},
+  {id:67,type:"normal",destination:"Luxemburgo",start:"2023-06-30",end:"2023-07-02",total:223.54,nights:2,expenses:[]},
+  {id:68,type:"normal",destination:"Cerdeña",start:"2023-07-06",end:"2023-07-10",total:510.03,nights:4,expenses:[]},
+  {id:69,type:"normal",destination:"Cambrils",start:"2023-08-16",end:"2023-08-20",total:333.74,nights:4,expenses:[]}
+];
+
+window.trips  = [];
+window.nextId = 70;
+
+// ══════════════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════════════
+const fmt  = n => '€' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+const fmtK = n => n>=1000 ? '€'+(n/1000).toFixed(1)+'k' : fmt(n);
+const fmtDate = s => { if(!s) return '—'; const [y,m,d]=s.split('-'); return `${d}.${m}.${y}`; };
+const getYear  = t => t.start ? t.start.slice(0,4) : null;
+const getMonth = t => t.start ? parseInt(t.start.slice(5,7)) : null;
+const getYears = () => [...new Set(window.trips.map(getYear).filter(Boolean))].sort();
+
+// Save status UI
+function showSaveStatus(type, msg){
+  const el=document.getElementById('save-status');
+  const msgEl=document.getElementById('save-msg');
+  el.className='save-status visible '+type;
+  msgEl.textContent=msg;
+  if(type==='saved'||type==='error') setTimeout(()=>el.classList.remove('visible'),2500);
+}
+
+// ══════════════════════════════════════════════════════
+// FILTER STATE
+// ══════════════════════════════════════════════════════
+let dashFilter   = { types:['all'], years:['all'], tripIds:[] };
+let tripListFilter = 'all';
+let analyticsYear  = 'all';
+let editingId      = null;
+let modalExpenses  = [];
+let charts = {};
+const gridColor = '#2a2d3a';
+const tickStyle = { color:'#7a7f96', font:{size:11,family:'DM Sans'} };
+const baseScales = {
+  x:{ ticks:tickStyle, grid:{color:gridColor} },
+  y:{ ticks:{...tickStyle, callback:v=>'€'+v}, grid:{color:gridColor} }
+};
+
+function destroyChart(id){ if(charts[id]){charts[id].destroy();delete charts[id];} }
+
+// ══════════════════════════════════════════════════════
+// DASHBOARD FILTERS
+// ══════════════════════════════════════════════════════
+window.buildYearChips = function(){
+  const years = getYears();
+  document.getElementById('year-chips').innerHTML =
+    `<button class="chip year all active" onclick="toggleYearChip('all',this)">Todos</button>`
+    + years.map(y=>`<button class="chip year" onclick="toggleYearChip('${y}',this)">${y}</button>`).join('');
+};
+
+function applyDashFilter(){
+  let arr = [...window.trips];
+  if(!dashFilter.types.includes('all')) arr=arr.filter(t=>dashFilter.types.includes(t.type));
+  if(!dashFilter.years.includes('all')) arr=arr.filter(t=>dashFilter.years.includes(getYear(t)));
+  if(dashFilter.tripIds.length>0)       arr=arr.filter(t=>dashFilter.tripIds.includes(t.id));
+  return arr;
+}
+
+window.toggleTypeChip = function(type, btn){
+  if(type==='all'){
+    dashFilter.types=['all'];
+    document.querySelectorAll('#type-chips .chip').forEach(c=>c.classList.remove('active'));
+    btn.classList.add('active');
+  } else {
+    document.querySelector('#type-chips .chip.all').classList.remove('active');
+    btn.classList.toggle('active');
+    const active=[...document.querySelectorAll('#type-chips .chip:not(.all).active')];
+    dashFilter.types = active.map(c=>c.classList.contains('normal')?'normal':c.classList.contains('restos')?'restos':'excursion');
+    if(!dashFilter.types.length){ dashFilter.types=['all']; document.querySelector('#type-chips .chip.all').classList.add('active'); }
+  }
+  updateTripDropdown(); renderDashboard();
+};
+
+window.toggleYearChip = function(year, btn){
+  if(year==='all'){
+    dashFilter.years=['all'];
+    document.querySelectorAll('#year-chips .chip').forEach(c=>c.classList.remove('active'));
+    btn.classList.add('active');
+  } else {
+    document.querySelector('#year-chips .chip.all').classList.remove('active');
+    btn.classList.toggle('active');
+    const active=[...document.querySelectorAll('#year-chips .chip:not(.all).active')].map(c=>c.textContent.trim());
+    if(!active.length){ dashFilter.years=['all']; document.querySelector('#year-chips .chip.all').classList.add('active'); }
+    else dashFilter.years=active;
+  }
+  updateTripDropdown(); renderDashboard();
+};
+
+function getDropdownTrips(){
+  let arr=[...window.trips];
+  if(!dashFilter.types.includes('all')) arr=arr.filter(t=>dashFilter.types.includes(t.type));
+  if(!dashFilter.years.includes('all')) arr=arr.filter(t=>dashFilter.years.includes(getYear(t)));
+  return arr.sort((a,b)=>(b.start||'').localeCompare(a.start||''));
+}
+
+window.buildTripDropdown = function(){
+  const visible=getDropdownTrips();
+  const allChecked=dashFilter.tripIds.length===0;
+  document.getElementById('trip-dropdown-menu').innerHTML=
+    `<div class="trip-option trip-option-all" onclick="toggleAllTrips()"><input type="checkbox" ${allChecked?'checked':''} readonly> <span>Todos los viajes</span></div>`
+    +visible.map(t=>`<div class="trip-option" onclick="toggleTripId(${t.id})">
+      <input type="checkbox" ${(allChecked||dashFilter.tripIds.includes(t.id))?'checked':''} readonly>
+      <span>${t.destination} <span style="color:var(--muted)">(${getYear(t)||'?'})</span></span>
+    </div>`).join('');
+  updateDropdownLabel();
+};
+
+function updateDropdownLabel(){
+  const el=document.getElementById('trip-dropdown-label');
+  if(!dashFilter.tripIds.length) el.textContent='Todos los viajes';
+  else if(dashFilter.tripIds.length===1) el.textContent=window.trips.find(t=>t.id===dashFilter.tripIds[0])?.destination||'1 viaje';
+  else el.textContent=`${dashFilter.tripIds.length} viajes seleccionados`;
+}
+
+function updateTripDropdown(){ dashFilter.tripIds=[]; buildTripDropdown(); }
+
+window.toggleTripDropdown = function(){
+  const m=document.getElementById('trip-dropdown-menu');
+  m.classList.toggle('open');
+  if(m.classList.contains('open')) buildTripDropdown();
+};
+
+document.addEventListener('click',e=>{
+  if(!document.getElementById('trip-dropdown-wrap')?.contains(e.target))
+    document.getElementById('trip-dropdown-menu')?.classList.remove('open');
+});
+
+window.toggleAllTrips = function(){ dashFilter.tripIds=[]; buildTripDropdown(); renderDashboard(); };
+
+window.toggleTripId = function(id){
+  const idx=dashFilter.tripIds.indexOf(id);
+  if(dashFilter.tripIds.length===0){
+    // deselect all others → keep only this
+    dashFilter.tripIds=[id];
+  } else {
+    if(idx>-1){ dashFilter.tripIds.splice(idx,1); }
+    else { dashFilter.tripIds.push(id); }
+  }
+  buildTripDropdown(); renderDashboard();
+};
+
+window.resetDashFilters = function(){
+  dashFilter={types:['all'],years:['all'],tripIds:[]};
+  document.querySelectorAll('#type-chips .chip').forEach(c=>c.classList.remove('active'));
+  document.querySelector('#type-chips .chip.all').classList.add('active');
+  buildYearChips(); buildTripDropdown(); renderDashboard();
+};
+
+// ══════════════════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════════════════
+window.renderDashboard = function(){
+  const arr=applyDashFilter();
+  const total=arr.reduce((s,t)=>s+t.total,0);
+  const nights=arr.reduce((s,t)=>s+t.nights,0);
+  const pn=nights>0?total/nights:0;
+  document.getElementById('s-total').textContent=fmtK(total);
+  document.getElementById('s-total-sub').textContent=arr.length+' viajes';
+  document.getElementById('s-count').textContent=arr.length;
+  document.getElementById('s-count-sub').textContent=[...new Set(arr.map(getYear).filter(Boolean))].sort().join(', ')||'—';
+  document.getElementById('s-pnight').textContent=pn>0?fmt(pn):'—';
+  document.getElementById('s-nights').textContent=nights;
+
+  const years=getYears();
+  const currentY=String(new Date().getFullYear());
+  const yearTotals=years.map(y=>arr.filter(t=>getYear(t)===y).reduce((s,t)=>s+t.total,0));
+  destroyChart('yearly');
+  charts['yearly']=new Chart(document.getElementById('ch-yearly'),{
+    type:'bar',
+    data:{labels:years,datasets:[{data:yearTotals,backgroundColor:years.map(y=>y===currentY?'#4f9cf9':'rgba(79,156,249,.35)'),borderRadius:6,borderSkipped:false}]},
+    options:{plugins:{legend:{display:false}},scales:baseScales}
+  });
+
+  const tTotals=['normal','restos','excursion'].map(tp=>arr.filter(t=>t.type===tp).reduce((s,t)=>s+t.total,0));
+  destroyChart('types');
+  charts['types']=new Chart(document.getElementById('ch-types'),{
+    type:'doughnut',
+    data:{labels:['Normal','Restos','Excursión'],datasets:[{data:tTotals,backgroundColor:['#4f9cf9','#f97b4f','#4fba8a'],borderWidth:0,hoverOffset:6}]},
+    options:{cutout:'65%',plugins:{legend:{display:true,position:'bottom',labels:{color:'#7a7f96',font:{size:11,family:'DM Sans'},padding:12}}}}
+  });
+
+  const pnData=years.map(y=>{const yt=arr.filter(t=>getYear(t)===y);const tot=yt.reduce((s,t)=>s+t.total,0);const nts=yt.filter(t=>t.nights>0).reduce((s,t)=>s+t.nights,0);return nts>0?parseFloat((tot/nts).toFixed(2)):0;});
+  destroyChart('pernightyr');
+  charts['pernightyr']=new Chart(document.getElementById('ch-pernightyr'),{
+    type:'line',
+    data:{labels:years,datasets:[{data:pnData,borderColor:'#f5c842',backgroundColor:'rgba(245,200,66,.1)',fill:true,tension:.4,pointBackgroundColor:'#f5c842',pointRadius:5}]},
+    options:{plugins:{legend:{display:false}},scales:baseScales}
+  });
+};
+
+// ══════════════════════════════════════════════════════
+// MIS VIAJES
+// ══════════════════════════════════════════════════════
+window.renderTrips = function(){
+  const q=document.getElementById('search-input').value.toLowerCase();
+  const typeLabel={normal:'Normal',restos:'Restos',excursion:'Excursión'};
+  const arr=window.trips.filter(t=>{
+    if(tripListFilter!=='all'&&t.type!==tripListFilter) return false;
+    if(q&&!t.destination.toLowerCase().includes(q)) return false;
+    return true;
+  }).sort((a,b)=>(b.start||'').localeCompare(a.start||''));
+  document.getElementById('trips-tbody').innerHTML=arr.map(t=>{
+    const pn=t.nights>0?'€'+(t.total/t.nights).toFixed(2):'—';
+    return `<tr>
+      <td><strong>${t.destination}</strong></td>
+      <td><span class="type-badge ${t.type}">${typeLabel[t.type]}</span></td>
+      <td>${fmtDate(t.start)}</td><td>${fmtDate(t.end)}</td>
+      <td>${t.nights||'—'}</td><td><strong>${fmt(t.total)}</strong></td><td>${pn}</td>
+      <td><div class="row-actions">
+        <button class="icon-btn edit" onclick="openTripModal(${t.id})" title="Editar">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <button class="icon-btn add-expense" onclick="openTripModal(${t.id},true)" title="Añadir gasto">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div></td>
+    </tr>`;
+  }).join('');
+};
+
+window.setTripFilter = function(type,el){
+  tripListFilter=type;
+  document.querySelectorAll('.filter-tab').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  renderTrips();
+};
+
+// ══════════════════════════════════════════════════════
+// MODAL
+// ══════════════════════════════════════════════════════
+window.openTripModal = function(id, focusExp=false){
+  editingId=id||null;
+  const t=id?window.trips.find(x=>x.id===id):null;
+  document.getElementById('modal-title').textContent=id?`Editar — ${t.destination}`:'Nuevo Viaje';
+  document.getElementById('btn-del').style.display=id?'block':'none';
+  document.getElementById('f-dest').value=t?.destination||'';
+  document.getElementById('f-start').value=t?.start||'';
+  document.getElementById('f-end').value=t?.end||'';
+  document.getElementById('f-type').value=t?.type||'normal';
+  document.getElementById('f-nights').value=t?.nights||'';
+  document.getElementById('f-total').value=t?.total||'';
+  modalExpenses=t?[...(t.expenses||[]).map(e=>({...e}))]:[];
+  renderExpenseList();
+  document.getElementById('modal').style.display='flex';
+  if(focusExp) setTimeout(()=>document.getElementById('exp-desc').focus(),100);
+};
+
+window.closeModal = function(){ document.getElementById('modal').style.display='none'; };
+window.closeModalOverlay = function(e){ if(e.target===document.getElementById('modal')) closeModal(); };
+
+window.renderExpenseList = function(){
+  const list=document.getElementById('expense-list');
+  const totalRow=document.getElementById('expense-total-row');
+  if(!modalExpenses.length){
+    list.innerHTML='<div class="no-expenses-msg">Sin gastos añadidos aún</div>';
+    totalRow.style.display='none'; return;
+  }
+  const sum=modalExpenses.reduce((s,e)=>s+e.amt,0);
+  list.innerHTML=modalExpenses.map((e,i)=>`
+    <div class="expense-item">
+      <span class="expense-item-desc">${e.desc||'Sin descripción'}</span>
+      <span class="expense-item-amount">${fmt(e.amt)}</span>
+      <button class="expense-item-del" onclick="removeExpense(${i})">✕</button>
+    </div>`).join('');
+  totalRow.style.display='flex';
+  document.getElementById('expense-total-val').textContent=fmt(sum);
+  document.getElementById('f-total').value=sum.toFixed(2);
+};
+
+window.addExpense = function(){
+  const desc=document.getElementById('exp-desc').value.trim();
+  const amt=parseFloat(document.getElementById('exp-amount').value);
+  if(isNaN(amt)||amt<=0){alert('Introduce un importe válido');return;}
+  modalExpenses.push({desc:desc||'Gasto',amt});
+  document.getElementById('exp-desc').value='';
+  document.getElementById('exp-amount').value='';
+  renderExpenseList();
+  document.getElementById('exp-desc').focus();
+};
+
+window.removeExpense = function(i){ modalExpenses.splice(i,1); renderExpenseList(); };
+
+window.saveTrip = function(){
+  const dest=document.getElementById('f-dest').value.trim();
+  if(!dest){alert('Introduce un destino');return;}
+  const trip={
+    id:editingId||window.nextId++,
+    destination:dest,
+    start:document.getElementById('f-start').value||null,
+    end:document.getElementById('f-end').value||null,
+    type:document.getElementById('f-type').value,
+    nights:parseInt(document.getElementById('f-nights').value)||0,
+    total:parseFloat(document.getElementById('f-total').value)||0,
+    expenses:[...modalExpenses]
+  };
+  if(editingId){ const idx=window.trips.findIndex(t=>t.id===editingId); window.trips[idx]=trip; }
+  else window.trips.push(trip);
+  closeModal();
+  window.saveToCloud && window.saveToCloud(window.trips);
+  refreshCurrent();
+};
+
+window.deleteTrip = function(){
+  if(!confirm('¿Eliminar este viaje?')) return;
+  window.trips=window.trips.filter(t=>t.id!==editingId);
+  closeModal();
+  window.saveToCloud && window.saveToCloud(window.trips);
+  refreshCurrent();
+};
+
+// ══════════════════════════════════════════════════════
+// ANALYTICS
+// ══════════════════════════════════════════════════════
+function renderAnalyticsYearFilter(){
+  document.getElementById('yr-filter-analytics').innerHTML=
+    ['all',...getYears()].map(y=>`<button class="year-btn ${analyticsYear===y?'active':''}" onclick="setAnalyticsYear('${y}')">${y==='all'?'Todos':y}</button>`).join('');
+}
+window.setAnalyticsYear = function(y){ analyticsYear=y; renderAnalyticsYearFilter(); renderAnalytics(); };
+
+function renderAnalytics(){
+  const arr=analyticsYear==='all'?window.trips:window.trips.filter(t=>getYear(t)===analyticsYear);
+  document.getElementById('monthly-label').textContent=analyticsYear==='all'?'Todos los años':'Meses de '+analyticsYear;
+  const months=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const mData=months.map((_,i)=>arr.filter(t=>getMonth(t)===i+1).reduce((s,t)=>s+t.total,0));
+  destroyChart('monthly');
+  charts['monthly']=new Chart(document.getElementById('ch-monthly'),{
+    type:'bar',data:{labels:months,datasets:[{data:mData,backgroundColor:'rgba(79,156,249,.6)',borderColor:'#4f9cf9',borderWidth:1,borderRadius:4,borderSkipped:false}]},
+    options:{plugins:{legend:{display:false}},scales:baseScales}
+  });
+  const destMap={};
+  arr.forEach(t=>{destMap[t.destination]=(destMap[t.destination]||0)+t.total;});
+  const sorted=Object.entries(destMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  destroyChart('top-dest');
+  charts['top-dest']=new Chart(document.getElementById('ch-top-dest'),{
+    type:'bar',data:{labels:sorted.map(([k])=>k),datasets:[{data:sorted.map(([,v])=>v),backgroundColor:'#4fba8a',borderRadius:4,borderSkipped:false}]},
+    options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#7a7f96',callback:v=>'€'+v},grid:{color:gridColor}},y:{ticks:{color:'#7a7f96',font:{size:11}},grid:{display:false}}}}
+  });
+  const s2=arr.filter(t=>t.start).sort((a,b)=>a.start.localeCompare(b.start));
+  let cum=0;
+  const cumData=s2.map(t=>({x:t.start,y:parseFloat((cum+=t.total).toFixed(2))}));
+  destroyChart('cumulative');
+  charts['cumulative']=new Chart(document.getElementById('ch-cumulative'),{
+    type:'line',data:{datasets:[{data:cumData,borderColor:'#f97b4f',backgroundColor:'rgba(249,123,79,.1)',fill:true,tension:.3,pointRadius:3,pointBackgroundColor:'#f97b4f'}]},
+    options:{parsing:false,plugins:{legend:{display:false}},scales:{
+      x:{type:'time',time:{unit:analyticsYear==='all'?'year':'month',displayFormats:{month:'MMM yy',year:'yyyy'}},ticks:{color:'#7a7f96',font:{size:11}},grid:{color:gridColor}},
+      y:{ticks:{color:'#7a7f96',callback:v=>'€'+v},grid:{color:gridColor}}}}
+  });
+}
+
+// ══════════════════════════════════════════════════════
+// COMPARE
+// ══════════════════════════════════════════════════════
+function renderCompare(){
+  const years=getYears();
+  const currentY=String(new Date().getFullYear());
+  document.getElementById('compare-cards').innerHTML=years.map(y=>{
+    const yt=window.trips.filter(t=>getYear(t)===y);
+    const tot=yt.reduce((s,t)=>s+t.total,0);
+    const nts=yt.reduce((s,t)=>s+t.nights,0);
+    const prevTot=window.trips.filter(t=>getYear(t)===String(parseInt(y)-1)).reduce((s,t)=>s+t.total,0);
+    let delta='';
+    if(prevTot>0){const d=((tot-prevTot)/prevTot*100).toFixed(1);const up=d>0;delta=`<div><span class="compare-delta ${up?'up':'down'}">${up?'↑':'↓'} ${Math.abs(d)}% vs ${parseInt(y)-1}</span></div>`;}
+    return `<div class="compare-card" style="${y===currentY?'border-color:var(--accent)':''}">
+      <div class="stat-label">${y}${y===currentY?' ★':''}</div>
+      <div style="font-size:24px;font-weight:700;margin:6px 0">${fmtK(tot)}</div>${delta}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
+        <div><div class="stat-label">Viajes</div><strong>${yt.length}</strong></div>
+        <div><div class="stat-label">Noches</div><strong>${nts}</strong></div>
+        <div><div class="stat-label">€/noche</div><strong>${nts>0?fmt(tot/nts):'—'}</strong></div>
+        <div><div class="stat-label">€/viaje</div><strong>${yt.length>0?fmt(tot/yt.length):'—'}</strong></div>
+      </div></div>`;
+  }).join('');
+  const totals=years.map(y=>window.trips.filter(t=>getYear(t)===y).reduce((s,t)=>s+t.total,0));
+  const pnights=years.map(y=>{const yt=window.trips.filter(t=>getYear(t)===y);const tot=yt.reduce((s,t)=>s+t.total,0);const nts=yt.filter(t=>t.nights>0).reduce((s,t)=>s+t.nights,0);return nts>0?parseFloat((tot/nts).toFixed(2)):0;});
+  destroyChart('evolution');
+  charts['evolution']=new Chart(document.getElementById('ch-evolution'),{
+    type:'bar',
+    data:{labels:years,datasets:[
+      {type:'bar',label:'Total €',data:totals,backgroundColor:'rgba(79,156,249,.5)',borderRadius:4,yAxisID:'y'},
+      {type:'line',label:'€/noche',data:pnights,borderColor:'#f5c842',backgroundColor:'transparent',pointBackgroundColor:'#f5c842',tension:.4,yAxisID:'y2'}
+    ]},
+    options:{plugins:{legend:{display:true,position:'top',labels:{color:'#7a7f96',font:{size:11,family:'DM Sans'},padding:12}}},
+      scales:{x:{ticks:{color:'#7a7f96'},grid:{color:gridColor}},y:{ticks:{color:'#7a7f96',callback:v=>'€'+v},grid:{color:gridColor}},y2:{position:'right',ticks:{color:'#f5c842',callback:v=>'€'+v},grid:{display:false}}}}
+  });
+}
+
+// ══════════════════════════════════════════════════════
+// NAV
+// ══════════════════════════════════════════════════════
+window.showPage = function(id, navEl){
+  document.querySelectorAll('.page-section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  (navEl||document.querySelector(`[data-page="${id}"]`)).classList.add('active');
+  if(id==='dashboard') renderDashboard();
+  else if(id==='trips') renderTrips();
+  else if(id==='analytics'){ renderAnalyticsYearFilter(); renderAnalytics(); }
+  else if(id==='compare') renderCompare();
+};
+
+window.refreshCurrent = function(){
+  const id=document.querySelector('.page-section.active')?.id.replace('page-','');
+  if(id) showPage(id);
+};
+
+// Time adapter
+const s=document.createElement('script');
+s.src='https://cdnjs.cloudflare.com/ajax/libs/chartjs-adapter-date-fns/3.0.0/chartjs-adapter-date-fns.bundle.min.js';
+document.head.appendChild(s);
+</script>
+</body>
+</html>
